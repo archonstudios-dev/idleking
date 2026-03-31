@@ -13,6 +13,7 @@ dist/
 # IDE settings
 .vscode/
 .idea/
+.codex
 .codex/
 
 # OS files
