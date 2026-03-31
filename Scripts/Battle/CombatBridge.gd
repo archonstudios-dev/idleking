@@ -8,7 +8,6 @@ const MOMENTUM_TARGET_BIAS := 0.10
 const MOMENTUM_RECOIL_REDUCTION := 0.06
 const MOMENTUM_EFFECT_CAP := 0.55
 const HIT_VARIANCE_RANGE := 0.10
-
 var _combat_manager: Node
 var _game_world: Node
 var _hero
@@ -108,18 +107,12 @@ func _on_hero_attack_hit(character) -> void:
 	var impact_direction: float = sign(_enemy.global_position.x - _hero.global_position.x)
 	if is_zero_approx(impact_direction):
 		impact_direction = 1.0
-	if _enemy != null and _enemy.has_method("apply_hit"):
-		_enemy.call("apply_hit", impact_direction, applied_damage, target_bias)
-	else:
-		_enemy.take_damage(applied_damage, _hero.global_position, target_bias)
-	if _hero != null and _hero.has_method("apply_recoil"):
-		_hero.call("apply_recoil", -impact_direction, applied_damage, attacker_recoil_bias)
-	elif _hero != null and _hero.has_method("apply_recoil_from_target"):
-		_hero.call("apply_recoil_from_target", _enemy.global_position, applied_damage, attacker_recoil_bias)
+	var impact_position: Vector2 = _get_impact_position(_hero, _enemy)
 	var state: Dictionary = _combat_manager.call("get_state")
 	_enemy.sync_health(int(state.get("enemy_current_hp", 0)), max(1, int(state.get("enemy_max_hp", 1))))
+	_apply_hit_reactions_after_stop(_enemy, _hero, impact_direction, applied_damage, target_bias, attacker_recoil_bias)
 	if _game_world != null and _game_world.has_method("apply_hit_feedback"):
-		_game_world.call("apply_hit_feedback", applied_damage, _enemy.global_position)
+		_game_world.call("apply_hit_feedback", applied_damage, impact_position)
 
 
 func _on_enemy_attack_hit(character) -> void:
@@ -138,18 +131,12 @@ func _on_enemy_attack_hit(character) -> void:
 	var impact_direction: float = sign(_hero.global_position.x - _enemy.global_position.x)
 	if is_zero_approx(impact_direction):
 		impact_direction = -1.0
-	if _hero != null and _hero.has_method("apply_hit"):
-		_hero.call("apply_hit", impact_direction, applied_damage, target_bias)
-	else:
-		_hero.take_damage(applied_damage, _enemy.global_position, target_bias)
-	if _enemy != null and _enemy.has_method("apply_recoil"):
-		_enemy.call("apply_recoil", -impact_direction, applied_damage, attacker_recoil_bias)
-	elif _enemy != null and _enemy.has_method("apply_recoil_from_target"):
-		_enemy.call("apply_recoil_from_target", _hero.global_position, applied_damage, attacker_recoil_bias)
+	var impact_position: Vector2 = _get_impact_position(_enemy, _hero)
 	var state: Dictionary = _combat_manager.call("get_state")
 	_hero.sync_health(int(state.get("king_current_hp", 0)), max(1, int(state.get("king_max_hp", 1))))
+	_apply_hit_reactions_after_stop(_hero, _enemy, impact_direction, applied_damage, target_bias, attacker_recoil_bias)
 	if _game_world != null and _game_world.has_method("apply_hit_feedback"):
-		_game_world.call("apply_hit_feedback", applied_damage, _hero.global_position)
+		_game_world.call("apply_hit_feedback", applied_damage, impact_position)
 
 
 func _on_hero_died(character) -> void:
@@ -188,3 +175,27 @@ func _on_enemy_defeated(_reward_gold: int, _cleared_wave: int) -> void:
 func _variance_from_positions(source: Vector2, target: Vector2) -> float:
 	var seed_value: float = float((int(source.x) * 13 + int(target.x) * 7 + int(source.y)) % 1000) / 1000.0
 	return lerpf(1.0 - HIT_VARIANCE_RANGE, 1.0 + HIT_VARIANCE_RANGE, seed_value)
+
+
+func _apply_hit_reactions_after_stop(defender, attacker, impact_direction: float, damage: int, target_bias: float, attacker_recoil_bias: float) -> void:
+	if defender != null and is_instance_valid(defender) and not defender.is_dead:
+		if defender.has_method("apply_hit"):
+			defender.call("apply_hit", impact_direction, damage, target_bias)
+		else:
+			var attacker_pos: Vector2 = attacker.global_position if attacker != null and is_instance_valid(attacker) else defender.global_position
+			defender.take_damage(damage, attacker_pos, target_bias)
+	if attacker != null and is_instance_valid(attacker) and not attacker.is_dead:
+		if attacker.has_method("apply_recoil"):
+			attacker.call("apply_recoil", -impact_direction, damage, attacker_recoil_bias)
+		elif attacker.has_method("apply_recoil_from_target") and defender != null and is_instance_valid(defender):
+			attacker.call("apply_recoil_from_target", defender.global_position, damage, attacker_recoil_bias)
+
+
+func _get_impact_position(attacker, defender) -> Vector2:
+	if attacker == null or not is_instance_valid(attacker):
+		return defender.global_position if defender != null and is_instance_valid(defender) else Vector2.ZERO
+	if defender == null or not is_instance_valid(defender):
+		return attacker.global_position
+	var midpoint: Vector2 = attacker.global_position.lerp(defender.global_position, 0.5)
+	midpoint.y -= 18.0
+	return midpoint

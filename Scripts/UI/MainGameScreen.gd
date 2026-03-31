@@ -149,14 +149,15 @@ func _build_battle_frame() -> void:
 	viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	viewport_container.add_child(viewport)
 
-	var world_instance = GameWorldScene.instantiate()
+	var world_instance := GameWorldScene.instantiate() as GameWorld
 	world_instance.name = "GameWorld"
 	viewport.add_child(world_instance)
 	game_world = world_instance
 
-	game_world.wave_changed.connect(_on_wave_changed)
-	game_world.hero_health_changed.connect(_on_hero_health_changed)
-	game_world.enemy_health_changed.connect(_on_enemy_health_changed)
+	if game_world != null:
+		game_world.wave_changed.connect(_on_wave_changed)
+		game_world.hero_health_changed.connect(_on_hero_health_changed)
+		game_world.enemy_health_changed.connect(_on_enemy_health_changed)
 
 	wave_label = Label.new()
 	wave_label.text = "Wave 1"

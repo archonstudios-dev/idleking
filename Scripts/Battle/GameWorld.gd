@@ -98,8 +98,8 @@ func _spawn_hero_visual() -> void:
 	instance.target_group = &"enemies"
 	instance.max_health = 100
 	instance.move_speed = 88.0
-	instance.attack_range = 56.0
-	instance.hitbox_range = 60.0
+	instance.attack_range = 148.0
+	instance.hitbox_range = 154.0
 	instance.sprite_faces_right = true
 	instance.sprite_offset = Vector2(0.0, -61.0)
 	instance.scale = Vector2.ONE
@@ -128,9 +128,9 @@ func _spawn_enemy_visual(state: Dictionary) -> void:
 	instance.team_group = &"enemies"
 	instance.target_group = &"heroes"
 	instance.max_health = max(1, int(state.get("enemy_max_hp", 1)))
-	instance.move_speed = 72.0 if not bool(state.get("enemy_is_boss", false)) else 58.0
-	instance.attack_range = 56.0
-	instance.hitbox_range = 60.0
+	instance.move_speed = 84.0 if not bool(state.get("enemy_is_boss", false)) else 72.0
+	instance.attack_range = 148.0
+	instance.hitbox_range = 154.0
 	instance.sprite_faces_right = true
 	instance.sprite_offset = Vector2(0.0, -63.0)
 	instance.scale = Vector2.ONE
@@ -234,7 +234,7 @@ func _apply_hit_stop() -> void:
 	_hit_stop_active = true
 	var previous_time_scale: float = Engine.time_scale
 	Engine.time_scale = 0.05
-	await _wait_unscaled(0.06)
+	await _wait_unscaled(0.05)
 	Engine.time_scale = previous_time_scale
 	_hit_stop_active = false
 

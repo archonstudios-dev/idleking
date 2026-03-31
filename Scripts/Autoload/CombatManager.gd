@@ -18,7 +18,7 @@ const KING_ATTACK_VISUAL_LOCK := 4.0 / 12.0
 const ENEMY_ATTACK_VISUAL_LOCK := 8.0 / 12.0
 const SHARED_MELEE_CONTACT_BUFFER := 0.18
 const COMBAT_ENTRY_DELAY := 0.6
-const POST_HIT_PACING_DELAY := 0.16
+const POST_HIT_PACING_DELAY := 0.21
 
 var current_wave: int = 1
 var king_damage: int = 1

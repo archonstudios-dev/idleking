@@ -1,0 +1,889 @@
+Combat Detailed Audit
+=====================
+
+Purpose
+-------
+
+This file documents the current live combat behavior as it exists in the project right now.
+
+It is meant to answer:
+- how combat is actually structured
+- where attack timing comes from
+- why hits can look desynced even when damage resolves correctly
+- why attack animation variety is limited
+
+
+1. COMBAT ARCHITECTURE
+----------------------
+
+The combat system uses 4 main layers:
+
+1. `CombatManager`
+- authoritative gameplay logic
+- owns HP, damage, timers, wave progression, defeat handling
+- decides when an attack is allowed
+- decides when damage is actually applied
+
+2. `CombatBridge`
+- sync layer between manager and character visuals
+- receives attack events from manager
+- tells characters to play attack animations
+- resolves hit visuals after `attack_hit`
+- applies defender hit reaction and attacker recoil
+
+3. `Character`
+- visual/motion layer only
+- plays animations
+- moves toward target
+- emits `attack_hit` at the configured impact time
+- handles recoil, knockback, hit stun, death visuals
+
+4. `GameWorld`
+- spawns hero/enemy visuals
+- binds `CombatBridge`
+- provides hit-stop, shake, damage numbers, and hit sound
+
+
+2. AUTHORITATIVE VS VISUAL RESPONSIBILITIES
+-------------------------------------------
+
+Authoritative systems:
+- HP values
+- damage values
+- wave progression
+- attack cooldowns
+- defeat conditions
+
+Visual-only systems:
+- attack animation playback
+- hit flash
+- knockback and recoil motion
+- hit-stop
+- camera shake
+- floating damage numbers
+
+Important consequence:
+- a hit can be mathematically correct even if the visual contact feels wrong
+- damage authority and visual impact timing are separate systems
+
+
+3. CURRENT ATTACK FLOW
+----------------------
+
+King side:
+1. `CombatManager` decides the king can attack
+2. `king_attack_performed` is emitted
+3. `CombatBridge._on_king_attack_requested()` calls `hero.play_attack_animation()`
+4. `Character` starts the attack animation
+5. At the animation impact point, `Character.attack_hit` is emitted
+6. `CombatBridge._on_hero_attack_hit()` calls `CombatManager.resolve_king_attack()`
+7. Manager subtracts enemy HP
+8. Bridge applies:
+   - defender hit reaction
+   - hit feedback in `GameWorld`
+   - attacker recoil
+
+Enemy side:
+1. `CombatManager` decides the enemy can attack
+2. `enemy_attack_performed` is emitted
+3. `CombatBridge._on_enemy_attack_requested()` calls `enemy.play_attack_animation()`
+4. `Character` starts the enemy attack animation
+5. At the enemy impact point, `Character.attack_hit` is emitted
+6. `CombatBridge._on_enemy_attack_hit()` calls `CombatManager.resolve_enemy_attack()`
+7. Manager subtracts king HP
+8. Bridge applies:
+   - defender hit reaction
+   - hit feedback in `GameWorld`
+   - attacker recoil
+
+
+4. CURRENT TIMING VALUES
+------------------------
+
+CombatManager:
+- `KING_ATTACK_VISUAL_LOCK = 4.0 / 12.0`
+- `ENEMY_ATTACK_VISUAL_LOCK = 8.0 / 12.0`
+- `COMBAT_ENTRY_DELAY = 0.6`
+- `POST_HIT_PACING_DELAY = 0.21`
+- `SHARED_MELEE_CONTACT_BUFFER = 0.18`
+
+Character:
+- `HIT_STUN_TIME = 0.16`
+- `RECOVERY_WINDOW = 0.26`
+- `RECOIL_RECOVERY_WINDOW = 0.22`
+- `KNOCKBACK_OVERRIDE_TIME = 0.26`
+- `LANE_CORRECTION_DELAY = 0.12`
+- `REENGAGE_BOOST_TIME = 0.22`
+
+Attack impact timing:
+- hero attack impact ratio: `0.52`
+- enemy attack impact ratio: `0.62`
+- impact variance: `0.04`
+
+GameWorld feedback:
+- hit-stop: time scale set to `0.05` for `0.06` seconds
+- camera shake duration: `0.14`
+
+CombatBridge:
+- attacker recoil currently delayed by `1` process frame after defender hit
+
+
+5. HOW ATTACK CONTACT IS CURRENTLY DETERMINED
+---------------------------------------------
+
+Actual damage is not applied when the attack animation starts.
+
+Damage is applied only when:
+- the attacking `Character` reaches its impact time
+- `attack_hit` is emitted
+- bridge calls manager resolution
+
+That means:
+- animation start and hit confirmation are separate
+- if the impact frame does not line up with the sprite contact pose, the hit looks wrong even though the manager is correct
+
+
+6. WHY HITS CAN LOOK LIKE THEY ARE NOT ACTUALLY HITTING
+-------------------------------------------------------
+
+There are several current reasons:
+
+1. Animation contact pose vs impact time are not artist-authored
+- The system uses a ratio-based timing model.
+- Hero and enemy impact frames are estimated by ratio, not by explicit contact notifies.
+- If the sprite pack's real contact frame differs from the ratio, the hit appears early or late.
+
+2. Defender reaction and attacker recoil are separate events
+- The bridge first applies defender hit.
+- Then attacker recoil is applied after a short deferred step.
+- This is cleaner than same-frame reaction, but if the defender pose already looks disconnected, it can still feel staged.
+
+3. Hit-stop is global, not character-authored
+- `GameWorld` freezes the whole world with `Engine.time_scale`.
+- This creates impact emphasis, but it is not tied to specific limbs/poses.
+- If the freeze lands slightly off the ideal contact pose, it highlights the desync instead of hiding it.
+
+4. Shared attack windows use melee contact buffering
+- `CombatManager.set_attack_windows()` keeps attack windows open while either side is in shared contact.
+- This improves fluidity, but can also allow an attack request to visually continue even when spacing looks borderline.
+
+5. Visual knockback is not the same thing as hit confirmation
+- Damage is authoritative.
+- Knockback is presentation force.
+- So a hit can deal damage while the motion response still feels too weak, too late, or too floaty.
+
+
+7. WHY KNOCKBACK CAN LOOK DESYNCED
+---------------------------------
+
+Current knockback/recoil behavior:
+- defender hit reaction uses `apply_hit(...)`
+- attacker uses `apply_recoil(...)`
+- both call `_apply_directional_force(...)`
+- force is damage-relative, then modified by:
+  - variance
+  - resistance
+  - edge resistance
+  - bridge bias
+
+Why it can still read poorly:
+
+1. Hit-stop and motion are layered separately
+- hit-stop occurs in `GameWorld`
+- knockback is applied in `Character`
+- bridge reaction order tries to help, but the feel still depends on whether the stop, flash, and motion align on the right frame
+
+2. Recoil is lighter than defender hit
+- `RECOIL_FORCE_FACTOR = 0.72`
+- attacker response is intentionally softer
+- this is good for readability, but can also look like the attacker is "sliding" instead of committing
+
+3. Lane correction and tether behavior can swallow pushback
+- `SOFT_TETHER_PULL`
+- `SOFT_CENTER_PULL`
+- `LANE_CORRECTION_DELAY`
+- `REENGAGE_BOOST_TIME`
+- these systems help keep fighters together
+- but they also reduce how long knockback stays visually readable
+
+4. Edge resistance changes the same hit visually
+- near stage edges, knockback is reduced
+- identical hits can look different depending on world position
+
+
+8. WHY THE KING CAN LOOK LIKE HE IS GETTING DOUBLE HIT
+------------------------------------------------------
+
+This feeling can come from stacked visual layers:
+
+1. The king takes the defender hit reaction
+- `apply_hit(...)`
+
+2. Global hit-stop triggers on the same exchange
+- world freeze emphasizes the contact
+
+3. Camera shake and floating damage number trigger too
+- these are both instant feedback layers
+
+4. If enemy animation contact is slightly late or early
+- the visual sequence can feel like:
+  - spell/weapon pose
+  - freeze
+  - king reacts
+  - recoil/settle still finishing
+
+This can read like "two hits" even when only one manager-side damage event happened.
+
+
+9. CURRENT CHARACTER ANIMATION LIMITATIONS
+------------------------------------------
+
+Current reality:
+- hero attack animation sequence = one entry
+- enemy attack animation sequence = one entry
+
+Specifically:
+- `Character._attack_sequence = ["attack"]`
+- there are no alternating combo entries
+- there are no light/heavy variants
+- there are no context-sensitive attack variants
+
+Result:
+- both sides currently use one attack animation repeatedly
+- combat can become visually repetitive even if the stats and timing differ
+
+
+10. CURRENT ANIMATION SETS IN USE
+--------------------------------
+
+Hero:
+- `idle`
+- `run`
+- `jump`
+- `attack`
+- `hit`
+- `death`
+
+Enemy:
+- `idle`
+- `run`
+- `jump`
+- `attack`
+- `hit`
+- `death`
+
+Important limitation:
+- only one attack animation key is currently used in runtime combat
+- even if extra art exists in the asset folder, it is not part of the active attack sequence unless explicitly added
+
+
+11. CURRENT FACING / ORIENTATION RULES
+--------------------------------------
+
+Facing is target-driven during:
+- chase
+- attack
+- knockback recovery
+
+Recent important fix:
+- recoil/hit no longer force characters to face away based on knockback direction
+- they now keep trying to face their target
+
+This solved the visible "wrong direction for one frame" bug, but it does not solve contact timing by itself.
+
+
+12. CURRENT SPACING AND RANGE RULES
+-----------------------------------
+
+Character range logic:
+- `attack_range`
+- `hitbox_range`
+- `HITBOX_Y_TOLERANCE`
+
+Current result:
+- fighters can be in visually close contact while still relying on ratio-based hit timing
+- if the sprite contact frame does not line up with range satisfaction, the exchange looks soft or fake
+
+
+13. WHAT IS CURRENTLY WORKING
+-----------------------------
+
+- authoritative damage resolution is working
+- wave progression is working
+- persistent enemy encounters are working
+- attack animations do trigger from manager events
+- hit-stop, shake, flash, and damage numbers all work
+- defeat flow works
+- knockback exists on both sides
+
+
+14. WHAT CURRENTLY FEELS WEAK
+-----------------------------
+
+- contact timing is not fully believable
+- knockback can read detached from the exact hit moment
+- one attack animation causes repetition
+- recoil and defender hit do not always read as one coherent exchange
+- current presentation layers are active, but not yet fully synchronized to the strongest contact frame
+
+
+15. MOST LIKELY REASONS COMBAT FEELS "DESYNCED"
+-----------------------------------------------
+
+Based on the live code, the biggest reasons are:
+
+1. Impact timing is estimated, not hand-authored per animation
+2. Only one attack animation is used, so repetition makes timing flaws easier to notice
+3. Defender hit, attacker recoil, hit-stop, flash, shake, and damage numbers are all separate layers that must line up
+4. Tether/centering systems reduce the visual persistence of knockback
+5. The system is mechanically correct, but not yet presentation-locked for release-level feel
+
+
+16. PRACTICAL SUMMARY
+---------------------
+
+Current combat is:
+- structurally solid
+- manager-authoritative
+- visually functional
+- not yet fully synchronized at the presentation layer
+
+The current project does NOT have:
+- broken damage authority
+- missing hit resolution
+- missing attack triggers
+
+The current project DOES have:
+- ratio-based contact timing
+- visible separation between mathematical hit and visual hit
+- repetitive attack presentation
+- knockback/readability issues caused by multiple timing layers interacting
+
+Short version:
+- the characters are fighting correctly in system logic
+- but the presentation layer still does not always sell the hit as a single believable contact event
+- animation variety is currently minimal because only one attack animation is active per side
+
+
+17. EXACT CURRENT ASSET USAGE
+-----------------------------
+
+Hero attack art currently active in runtime combat:
+- `Assets/Art/King/Medieval King Pack 2/Sprites/Attack2.png`
+
+Hero attack art available in the project but not currently used in runtime combat:
+- `Assets/Art/King/Medieval King Pack/Attack_1.png`
+- `Assets/Art/King/Medieval King Pack/Attack_2.png`
+- `Assets/Art/King/Medieval King Pack 2/Sprites/Attack1.png`
+- `Assets/Art/King/Medieval King Pack 2/Sprites/Attack3.png`
+
+Enemy attack art currently active in runtime combat:
+- `Assets/Art/Enemies/EVil Wizard 2/Sprites/Attack1.png`
+
+Enemy attack art available in the project but not currently used in runtime combat:
+- `Assets/Art/Enemies/Evil Wizard/Sprites/Attack.png`
+- `Assets/Art/Enemies/EVil Wizard 2/Sprites/Attack2.png`
+- additional enemy-family attack sheets in other folders, not used by the current active enemy character
+
+Practical consequence:
+- the game already contains more attack art than the current runtime uses
+- current combat monotony is not caused by lack of assets alone
+- it is mostly caused by the current `Character` implementation only using one active attack key
+
+
+18. CURRENT LIVE ANIMATION LIMITATION IN PLAIN TERMS
+----------------------------------------------------
+
+Right now, each side effectively does this:
+- start attack animation
+- wait until impact ratio
+- emit hit
+- return to idle/run
+- repeat the same attack sheet again
+
+What is NOT happening right now:
+- no alternating combo chain
+- no attack-specific contact timing table per individual sheet
+- no variation in attack choice
+- no attack-specific recoil timing
+
+So even though the system has:
+- real damage
+- real knockback
+- real hit-stop
+- real recoil
+
+the visual language still feels repetitive because:
+- the same animation keeps carrying the whole combat presentation burden
+
+
+19. WHY THE CHARACTERS LOOK LIKE THEY ARE FIGHTING BUT NOT CONNECTING
+---------------------------------------------------------------------
+
+This is the core readability problem in plain language:
+
+1. The attack animation starts
+- this visually tells the player "a strike is beginning"
+
+2. The actual hit happens later based on a ratio
+- not based on an explicit hand-picked frame event
+
+3. The defender reaction, shake, flash, freeze, number pop, and recoil all stack together
+- these are correct systems
+- but they do not always align with the strongest visual contact pose
+
+4. The result is:
+- the fight is logically correct
+- but the eye does not always read the hit as a clean collision
+
+That creates the exact feeling of:
+- "they are fighting"
+but also
+- "it doesn't look like the hit really landed"
+
+
+20. WHY KNOCKBACK FEELS OUT OF SYNC SPECIFICALLY
+------------------------------------------------
+
+Current order in presentation:
+- attack animation reaches impact point
+- `attack_hit` emits
+- manager resolves damage
+- bridge applies defender hit response
+- `GameWorld` applies:
+  - damage number
+  - shake
+  - hit-stop
+  - sound
+- attacker recoil also happens as part of bridge response
+
+Why this can still feel wrong:
+- all these feedback layers are technically tied to the hit
+- but if the sprite pose is not the perfect contact pose at that moment, the feedback highlights the mismatch
+
+So knockback feels desynced not because the code is random, but because:
+- contact timing
+- sprite pose
+- reaction order
+- tether recentering
+
+are all individually reasonable, but not yet fully harmonized into one clean visual beat
+
+
+21. WHY THE CURRENT SYSTEM DOES NOT YET FEEL RELEASE-READY
+----------------------------------------------------------
+
+The system is mechanically solid, but release feel usually requires:
+- exact contact readability
+- low ambiguity on when a hit lands
+- visible difference between attack variants
+- reactions that look authored, not estimated
+
+Current live weaknesses that block that feeling:
+- one repeated attack animation per side
+- ratio-timed impacts instead of animation-authored contact points
+- knockback readability being shortened by lane/tether correction
+- multiple feedback systems landing together without perfectly matching the strongest contact frame
+
+
+22. WHAT A GOOD NEXT COMBAT PASS SHOULD TARGET
+----------------------------------------------
+
+Without redesigning architecture, the next pass should focus on:
+- attack animation variety
+- exact per-animation impact timing
+- cleaner one-beat synchronization of:
+  - hit confirmation
+  - defender reaction
+  - attacker recoil
+  - hit-stop
+  - shake
+  - damage number
+- slightly longer readable separation after impact
+
+That is the path from:
+- "combat works"
+to
+- "combat looks like real contact"
+
+
+23. FINAL DIAGNOSIS
+-------------------
+
+Current truth:
+- combat logic is working
+- attacks do resolve
+- knockback does exist
+- hit feedback does trigger
+
+But the presentation still reads weak because:
+- attack variety is low
+- contact timing is estimated
+- feedback layers are not yet fully authored to the same exact visual beat
+
+Short version:
+- the combat problem is no longer system authority
+- the combat problem is presentation synchronization and animation variety
+
+
+24. FOLLOW-UP AUDIT: KING DELAY ONLY WHEN ENEMY ATTACKS
+-------------------------------------------------------
+
+Current observed symptom:
+- the king's reaction looks late mainly on enemy attacks
+- the same problem is much less noticeable when the king attacks the enemy
+
+This points away from:
+- `CombatManager` authority
+- generic knockback math
+- the king hit reaction code by itself
+
+and points toward:
+- enemy attack timing
+- enemy-side contact distance
+- enemy-side visual contact pose alignment
+
+
+25. EXACT LIVE ENEMY-HIT FLOW
+-----------------------------
+
+When the enemy attacks right now:
+
+1. `CombatManager` emits `enemy_attack_performed`
+2. `CombatBridge._on_enemy_attack_requested()` calls `enemy.play_attack_animation()`
+3. `Character.play_attack_animation()` starts either:
+   - `attack_1`
+   - `attack_2`
+4. The enemy attack runs until:
+   - `_attack_time >= duration * _attack_impact_ratio_current`
+5. At that exact moment:
+   - `attack_hit.emit(self)` fires
+6. `CombatBridge._on_enemy_attack_hit()` runs and:
+   - resolves damage in `CombatManager`
+   - syncs king HP
+   - applies king hit reaction
+   - applies enemy recoil
+   - triggers hit feedback in `GameWorld`
+
+Important finding:
+- the king reaction itself is not deferred anymore
+- it is applied immediately inside `_on_enemy_attack_hit()`
+
+That means the "late" feeling is not coming from a remaining explicit wait in `CombatBridge`.
+
+
+26. EXACT LIVE ENEMY ATTACK TIMINGS
+-----------------------------------
+
+Enemy animation data:
+- `attack_1`
+  - 8 frames
+  - 12 fps
+  - total duration: about `0.667s`
+  - current impact ratio: `0.48`
+  - actual hit time: about `0.320s`
+
+- `attack_2`
+  - 8 frames
+  - 12 fps
+  - total duration: about `0.667s`
+  - current impact ratio: `0.55`
+  - actual hit time: about `0.367s`
+
+Current impact variance:
+- `0.01`
+
+Practical reading:
+- the enemy hit is currently authored to land relatively early in an 8-frame attack
+- if the sprite pack's strongest contact pose is later than frame 4-5, the king will look like he reacts off-beat
+
+
+27. CURRENT LIVE HERO ATTACK TIMINGS
+------------------------------------
+
+Hero animation data:
+- `attack_1`
+  - 4 frames
+  - 12 fps
+  - total duration: about `0.333s`
+  - impact ratio: `0.48`
+  - actual hit time: about `0.160s`
+
+- `attack_2`
+  - 4 frames
+  - 12 fps
+  - total duration: about `0.333s`
+  - impact ratio: `0.55`
+  - actual hit time: about `0.183s`
+
+- `attack_3`
+  - 4 frames
+  - 12 fps
+  - total duration: about `0.333s`
+  - impact ratio: `0.60`
+  - actual hit time: about `0.200s`
+
+Why this matters:
+- the hero attacks are short and compact
+- timing mistakes are less obvious on them
+- the enemy attacks are longer and therefore expose mistimed impact frames more clearly
+
+
+28. LIVE RANGE / SPACING VALUES THAT AFFECT READABILITY
+-------------------------------------------------------
+
+Current live spawn tuning in `GameWorld.gd`:
+- hero `attack_range = 70.0`
+- hero `hitbox_range = 74.0`
+- enemy `attack_range = 70.0`
+- enemy `hitbox_range = 74.0`
+
+Current live `Character.gd` spacing:
+- `MIN_COMBAT_DISTANCE = 64.0`
+- `ATTACK_START_PADDING = 2.0`
+
+Practical consequence:
+- fighters are allowed to count as "in range" while still visibly apart
+- this helped clipping
+- but it also increases the chance that an enemy hit confirms before the enemy sprite visually looks like it has fully connected with the king
+
+So the current system is trading:
+- less overlap
+for
+- more timing sensitivity in enemy contact readability
+
+
+29. WHY THE KING LOOKS DELAYED SPECIFICALLY ON ENEMY ATTACKS
+------------------------------------------------------------
+
+Based on the current live code, the most likely exact reason is:
+
+1. Enemy impact timing is early for its longer 8-frame attacks
+- current enemy hit times are around `0.320s` and `0.367s`
+- if the real contact pose is later, the king reaction appears out of sync
+
+2. Enemy attacks now happen from a wider allowed spacing
+- `attack_range = 70`
+- `hitbox_range = 74`
+- this improves overlap, but can make enemy contact feel less physically grounded if the sheet visually reaches later
+
+3. Hit-stop still freezes immediately on the same event
+- reaction is immediate in code
+- but the freeze emphasizes whatever pose the enemy is in on the impact frame
+- if that pose is not the strongest contact pose, the king can still look "late"
+
+4. The problem is asymmetric because the enemy sheets are longer
+- the hero's 4-frame attacks hide timing drift better
+- the enemy's 8-frame attacks expose timing drift more
+
+Most important conclusion:
+- the current late-feeling reaction is primarily an enemy impact-timing problem, not a king reaction-delay problem
+
+
+30. WHAT IS NOT THE PRIMARY CAUSE
+---------------------------------
+
+Based on the live code, the following are no longer the main issue:
+
+- not a delayed recoil coroutine in `CombatBridge`
+- not `CombatManager` damage timing
+- not missing signal connections
+- not the king failing to receive `apply_hit(...)`
+- not the old wrong-facing bug
+
+Those were previous problems, but the current remaining issue is more specific:
+- enemy attack contact is visually landing on the wrong beat
+
+
+31. BEST NEXT FIX TARGET
+------------------------
+
+If the goal is to solve the king's late reaction specifically, the first thing to tune should be:
+
+- enemy impact ratios only
+
+Likely direction:
+- move enemy impact later, not earlier
+
+Most likely starting values to test:
+- `enemy attack_1: 0.48 -> ~0.58`
+- `enemy attack_2: 0.55 -> ~0.64`
+
+Optional supporting follow-up:
+- slightly reduce enemy effective hit confirm distance if later timing alone is not enough
+
+Recommended order:
+1. tune enemy impact ratios
+2. re-check king reaction feel
+3. only then adjust spacing further if needed
+
+
+32. CURRENT EXACT DIAGNOSIS
+---------------------------
+
+Right now the king does react immediately in code when enemy `attack_hit` fires.
+
+The reason it still looks late is:
+- the enemy hit is probably firing before the sprite reaches its strongest contact pose
+- and the widened combat distance makes that visual mismatch easier to notice
+
+Short version:
+- this is now primarily an enemy animation timing problem
+- not a missing king reaction problem
+
+
+33. FOLLOW-UP AUDIT: WHY THE KING CAN LOOK KNOCKED BACK TWICE
+-------------------------------------------------------------
+
+Current observed symptom:
+- one enemy hit lands
+- king HP only changes once
+- but the king can visually read like he gets pushed twice
+
+This is a different problem from "damage twice".
+It is a presentation overlap problem.
+
+
+34. WHAT THE LIVE CODE PROVES
+-----------------------------
+
+The king is not taking two authoritative hits from one enemy strike.
+
+Why:
+- `CombatManager.resolve_enemy_attack()` only subtracts HP once per pending enemy attack
+- `_enemy_attack_pending` is cleared immediately inside `resolve_enemy_attack()`
+- `king_damaged.emit(...)` only fires once for that resolved attack
+- there is no second manager-side damage path connected to the king visual
+
+So the "double hit" feeling is visual only, not gameplay logic.
+
+
+35. MOST LIKELY EXACT VISUAL CAUSE
+----------------------------------
+
+The strongest remaining suspect in the live code is:
+
+- the king's own attack/recoil state can overlap with the enemy hit reaction state
+
+Current reason:
+- on king attacks, `CombatBridge._on_hero_attack_hit()` applies:
+  - enemy defender hit
+  - king attacker recoil
+
+- on enemy attacks, `CombatBridge._on_enemy_attack_hit()` applies:
+  - king defender hit
+  - enemy attacker recoil
+
+If the king is in or near his own attack follow-through when the enemy hit lands, the eye can read:
+- king settles/recoils from his own action
+- then king also gets enemy hit reaction
+
+That feels like:
+- "one hit, two backward motions"
+
+even though only one enemy damage event happened.
+
+
+36. WHY THIS SHOWS UP MOSTLY WHEN THE ENEMY ATTACKS
+---------------------------------------------------
+
+Because the king is the one receiving both of these visual layers:
+
+1. His own attacker-side motion from earlier exchange timing
+2. The enemy-hit defender reaction
+
+The enemy does not expose the issue as strongly because:
+- the enemy's presentation is less readable than the king's
+- the player's eye is focused on the king's body language
+
+So the problem is not just:
+- enemy impact timing
+
+It is now more specifically:
+- enemy impact timing plus king carry-over motion overlap
+
+
+37. SPECIFIC LIVE CODE PATH THAT ALLOWS THE OVERLAP
+---------------------------------------------------
+
+In `Character.apply_hit(...)`:
+- `_apply_directional_force(...)` happens immediately
+- recovery is entered immediately
+
+But current hit interruption logic is conditional:
+
+- if `_is_attacking`
+  - and `profile == "hero"`
+  - and `not _attack_hit_emitted`
+    - break the attack immediately
+  - else
+    - `_queued_attack = true`
+    - `return`
+
+That means:
+- if the king has already emitted his own attack hit
+- but is still visually in attack follow-through
+- then enemy hit can arrive
+- and the function may return early without forcing the full hit animation takeover
+
+Result:
+- knockback force is already applied
+- but the visual state can still be partially carrying attack/follow-through
+- then the actual body read of the hit feels split into two beats
+
+This is the most likely exact source of the "double knockback" feeling.
+
+
+38. SECONDARY CONTRIBUTING FACTOR
+---------------------------------
+
+Current hit-stop still happens after reactions are applied:
+- bridge applies reactions
+- `GameWorld.apply_hit_feedback()` triggers hit-stop
+
+This is good for immediacy, but it can still preserve a half-transition pose if:
+- attack follow-through is not fully canceled
+- then the freeze catches the king between attack motion and hit motion
+
+That can visually exaggerate the impression of:
+- "first he moved from his own attack"
+- "then he got knocked again"
+
+
+39. WHAT THE NEXT FIX SHOULD TARGET
+-----------------------------------
+
+To solve this specific issue, the next fix should target:
+
+- king hit interruption after enemy hit
+
+More specifically:
+- when the king is the defender and gets hit by the enemy,
+  force the king fully out of attack/follow-through visual state
+  even if `_attack_hit_emitted` is already true
+
+That means:
+- no conditional partial carry-over on king defender hit
+- the enemy hit should fully own the king's visual state on that beat
+
+Short version:
+- the king likely is not reacting late anymore
+- he is visually carrying over too much of his own action before the enemy hit fully takes over
+
+
+40. CURRENT BEST DIAGNOSIS
+--------------------------
+
+The remaining problem is most likely:
+- not double damage
+- not a second knockback force from gameplay logic
+- but overlapping king motion layers
+
+Most likely exact source:
+- king attack follow-through is not always fully canceled when enemy hit lands
+
+That is why one enemy hit can still read like:
+- first backward motion
+- second backward motion
+
+even though the combat system only resolved one real hit.

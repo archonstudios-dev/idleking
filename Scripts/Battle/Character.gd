@@ -14,8 +14,7 @@ enum CombatState {
 const ACCELERATION := 1200.0
 const HIT_STUN_TIME := 0.16
 const DEATH_HOLD_TIME := 0.8
-const ATTACK_IMPACT_RATIO := 0.45
-const ATTACK_IMPACT_VARIANCE := 0.10
+const ATTACK_IMPACT_VARIANCE := 0.01
 const KNOCKBACK_SPEED := 40.0
 const KNOCKBACK_BURST_DECAY := 120.0
 const KNOCKBACK_RECOVERY_DECAY := 760.0
@@ -23,23 +22,25 @@ const KNOCKBACK_BURST_PHASE_RATIO := 0.34
 const KNOCKBACK_OVERRIDE_TIME := 0.26
 const KNOCKBACK_FRICTION := 900.0
 const ATTACK_RANGE_FRICTION := 1800.0
-const SOFT_TETHER_EXTRA_RANGE := 36.0
+const MIN_COMBAT_DISTANCE := 144.0
+const ATTACK_START_PADDING := 14.0
+const SOFT_TETHER_EXTRA_RANGE := 44.0
 const SOFT_TETHER_PULL := 280.0
-const SOFT_CENTER_PULL := 26.0
-const CENTER_PULL_ACCELERATION := 140.0
+const SOFT_CENTER_PULL := 52.0
+const CENTER_PULL_ACCELERATION := 260.0
 const HITBOX_Y_TOLERANCE := 40.0
 const HIT_FLASH_COLOR := Color(1.45, 1.2, 1.2, 1.0)
 const HIT_FLASH_DURATION := 0.06
 const BACKSTEP_SPEED_FACTOR := 0.34
 const BACKSTEP_DISTANCE := 28.0
-const DAMAGE_FORCE_SCALE := 0.95
+const DAMAGE_FORCE_SCALE := 1.02
 const RECOIL_FORCE_FACTOR := 0.72
-const MIN_IMPACT_FORCE := 26.0
-const MAX_IMPACT_FORCE := 72.0
-const IMPACT_VARIATION_MIN := 0.9
-const IMPACT_VARIATION_MAX := 1.1
+const MIN_IMPACT_FORCE := 28.0
+const MAX_IMPACT_FORCE := 78.0
+const IMPACT_VARIATION_MIN := 0.78
+const IMPACT_VARIATION_MAX := 1.22
 const EDGE_RESISTANCE_DISTANCE := 120.0
-const EDGE_RESISTANCE_MIN_FACTOR := 0.4
+const EDGE_RESISTANCE_MIN_FACTOR := 0.72
 const LOW_HP_KNOCKBACK_RESISTANCE := 0.72
 const COMEBACK_HEALTH_THRESHOLD := 0.20
 const COMEBACK_RESISTANCE_FACTOR := 0.65
@@ -49,12 +50,20 @@ const RECOIL_RECOVERY_WINDOW := 0.22
 const LANE_CORRECTION_DELAY := 0.12
 const REENGAGE_BOOST_TIME := 0.22
 const REENGAGE_SPEED_MULTIPLIER := 1.16
+const ENEMY_ATTACK_COMMIT_TIME := 0.20
+const HERO_IMPACT_FORCE_MULTIPLIER := 0.95
+const ENEMY_IMPACT_FORCE_MULTIPLIER := 1.08
+const CENTER_KNOCKBACK_RETURN_BOOST := 1.34
+const EDGE_KNOCKBACK_DRIFT_DAMP := 0.68
+const MIDPOINT_RETURN_PULL := 24.0
 
 const HERO_ANIMATIONS := {
 	"idle": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Idle.png"), "frames": 8, "fps": 8.0},
 	"run": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Run.png"), "frames": 8, "fps": 12.0},
 	"jump": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Jump.png"), "frames": 2, "fps": 7.0},
-	"attack": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Attack2.png"), "frames": 4, "fps": 12.0},
+	"attack_1": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Attack1.png"), "frames": 4, "fps": 12.0},
+	"attack_2": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Attack2.png"), "frames": 4, "fps": 12.0},
+	"attack_3": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Attack3.png"), "frames": 4, "fps": 12.0},
 	"hit": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Take Hit.png"), "frames": 4, "fps": 12.0},
 	"death": {"texture": preload("res://Assets/Art/King/Medieval King Pack 2/Sprites/Death.png"), "frames": 6, "fps": 9.0}
 }
@@ -63,9 +72,21 @@ const ENEMY_ANIMATIONS := {
 	"idle": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Idle.png"), "frames": 8, "fps": 8.0},
 	"run": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Run.png"), "frames": 8, "fps": 12.0},
 	"jump": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Jump.png"), "frames": 2, "fps": 7.0},
-	"attack": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Attack1.png"), "frames": 8, "fps": 12.0},
+	"attack_1": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Attack1.png"), "frames": 8, "fps": 12.0},
+	"attack_2": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Attack2.png"), "frames": 8, "fps": 12.0},
 	"hit": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Take hit.png"), "frames": 3, "fps": 12.0},
 	"death": {"texture": preload("res://Assets/Art/Enemies/EVil Wizard 2/Sprites/Death.png"), "frames": 7, "fps": 9.0}
+}
+
+const HERO_ATTACK_IMPACT_RATIOS := {
+	"attack_1": 0.48,
+	"attack_2": 0.55,
+	"attack_3": 0.60,
+}
+
+const ENEMY_ATTACK_IMPACT_RATIOS := {
+	"attack_1": 0.58,
+	"attack_2": 0.64,
 }
 
 @export_enum("hero", "enemy") var profile: String = "hero"
@@ -107,10 +128,12 @@ var _state: CombatState = CombatState.IDLE
 var _nearby_targets: Array[Character] = []
 var _target: Character
 var _flash_token: int = 0
-var _attack_impact_ratio_current: float = ATTACK_IMPACT_RATIO
+var _attack_impact_ratio_current: float = 0.55
 var _attack_sequence: Array[String] = []
 var _attack_sequence_index: int = 0
-var _active_attack_animation: String = "attack"
+var _active_attack_animation: String = "attack_1"
+var _attack_impact_ratios: Dictionary = {}
+var _attack_commit_time_remaining: float = 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var detection_area: Area2D = $DetectionArea
@@ -124,7 +147,8 @@ func _ready() -> void:
 	z_index = 0
 	current_health = max_health
 	_animations = HERO_ANIMATIONS if profile == "hero" else ENEMY_ANIMATIONS
-	_attack_sequence = ["attack"]
+	_attack_impact_ratios = HERO_ATTACK_IMPACT_RATIOS if profile == "hero" else ENEMY_ATTACK_IMPACT_RATIOS
+	_attack_sequence = _build_attack_sequence()
 	_base_scale = sprite.scale
 	_ground_y = global_position.y
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -140,11 +164,24 @@ func _ready() -> void:
 	health_changed.emit(current_health, max_health)
 
 
+func _build_attack_sequence() -> Array[String]:
+	var sequence: Array[String] = []
+	if profile == "hero":
+		sequence.append("attack_1")
+		sequence.append("attack_2")
+		sequence.append("attack_3")
+	else:
+		sequence.append("attack_1")
+		sequence.append("attack_2")
+	return sequence
+
+
 func _physics_process(delta: float) -> void:
 	_update_knockback(delta)
 	_lane_correction_delay_remaining = maxf(0.0, _lane_correction_delay_remaining - delta)
 	_reengage_time_remaining = maxf(0.0, _reengage_time_remaining - delta)
 	_recovery_time_remaining = maxf(0.0, _recovery_time_remaining - delta)
+	_attack_commit_time_remaining = maxf(0.0, _attack_commit_time_remaining - delta)
 
 	if is_dead:
 		_process_death(delta)
@@ -155,6 +192,8 @@ func _physics_process(delta: float) -> void:
 	if not can_move:
 		velocity.x = 0.0
 		_state = CombatState.IDLE
+	elif profile == "enemy" and _is_attacking and _attack_commit_time_remaining > 0.0:
+		_process_attack(delta)
 	elif _knockback_time_remaining > 0.0:
 		_process_knockback(delta)
 	elif _is_attacking:
@@ -231,9 +270,11 @@ func play_attack_animation() -> bool:
 	_is_attacking = true
 	_attack_time = 0.0
 	_attack_hit_emitted = false
-	_attack_impact_ratio_current = ATTACK_IMPACT_RATIO * _rand_variance(ATTACK_IMPACT_VARIANCE)
 	_active_attack_animation = _attack_sequence[_attack_sequence_index % _attack_sequence.size()]
 	_attack_sequence_index += 1
+	var base_impact_ratio: float = float(_attack_impact_ratios.get(_active_attack_animation, 0.55))
+	_attack_impact_ratio_current = base_impact_ratio * _rand_variance(ATTACK_IMPACT_VARIANCE)
+	_attack_commit_time_remaining = ENEMY_ATTACK_COMMIT_TIME if profile == "enemy" else 0.0
 	_state = CombatState.ATTACK
 	velocity.x = 0.0
 	_set_animation(_active_attack_animation, true)
@@ -245,7 +286,8 @@ func is_target_in_range(target: Character) -> bool:
 		return false
 	var distance_x: float = absf(target.global_position.x - global_position.x)
 	var distance_y: float = absf(target.global_position.y - global_position.y)
-	return distance_x <= hitbox_range and distance_y <= HITBOX_Y_TOLERANCE
+	var combat_distance: float = maxf(hitbox_range, MIN_COMBAT_DISTANCE - ATTACK_START_PADDING)
+	return distance_x <= combat_distance and distance_y <= HITBOX_Y_TOLERANCE
 
 
 func take_damage(amount: int, attacker_pos: Vector2 = Vector2.ZERO, impact_bias: float = 1.0) -> void:
@@ -276,6 +318,7 @@ func take_damage(amount: int, attacker_pos: Vector2 = Vector2.ZERO, impact_bias:
 
 func _process_state_machine(delta: float) -> void:
 	if _hit_time_remaining > 0.0:
+		_reengage_time_remaining = maxf(_reengage_time_remaining, 0.06)
 		_state = CombatState.IDLE
 		velocity.x = move_toward(velocity.x, 0.0, ACCELERATION * delta)
 		return
@@ -294,12 +337,20 @@ func _process_state_machine(delta: float) -> void:
 	var distance_x: float = target.global_position.x - global_position.x
 	var abs_distance_x: float = absf(distance_x)
 	var effective_move_speed: float = move_speed * (REENGAGE_SPEED_MULTIPLIER if _reengage_time_remaining > 0.0 else 1.0)
+	var stop_distance: float = maxf(attack_range, MIN_COMBAT_DISTANCE)
+	var attack_start_padding: float = ATTACK_START_PADDING if profile == "hero" else 10.0
+	var desired_attack_distance: float = clampf(stop_distance - attack_start_padding, MIN_COMBAT_DISTANCE, hitbox_range)
 
 	_update_facing_to_target(target)
 
 	var retreat_distance: float = maxf(BACKSTEP_DISTANCE, attack_range * 0.45)
 
 	if _queued_attack and is_target_in_range(target):
+		if abs_distance_x < desired_attack_distance:
+			_state = CombatState.CHASE
+			var queued_retreat_velocity_x: float = -sign(distance_x) * effective_move_speed * BACKSTEP_SPEED_FACTOR
+			velocity.x = move_toward(velocity.x, queued_retreat_velocity_x, ACCELERATION * delta)
+			return
 		_state = CombatState.ATTACK
 		velocity.x = move_toward(velocity.x, 0.0, ATTACK_RANGE_FRICTION * delta)
 		play_attack_animation()
@@ -307,6 +358,11 @@ func _process_state_machine(delta: float) -> void:
 
 	if _attack_requested:
 		if is_target_in_range(target):
+			if abs_distance_x < desired_attack_distance:
+				_state = CombatState.CHASE
+				var attack_retreat_velocity_x: float = -sign(distance_x) * effective_move_speed * BACKSTEP_SPEED_FACTOR
+				velocity.x = move_toward(velocity.x, attack_retreat_velocity_x, ACCELERATION * delta)
+				return
 			_state = CombatState.ATTACK
 			velocity.x = move_toward(velocity.x, 0.0, ATTACK_RANGE_FRICTION * delta)
 			play_attack_animation()
@@ -329,7 +385,7 @@ func _process_state_machine(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, backstep_velocity_x, ACCELERATION * delta)
 		return
 
-	if abs_distance_x <= attack_range:
+	if abs_distance_x <= stop_distance:
 		_state = CombatState.IDLE
 		velocity.x = move_toward(velocity.x, 0.0, ATTACK_RANGE_FRICTION * delta)
 		return
@@ -355,6 +411,7 @@ func _process_attack(delta: float) -> void:
 		_is_attacking = false
 		_attack_requested = false
 		_attack_time = 0.0
+		_attack_commit_time_remaining = 0.0
 		if _queued_attack and _target != null and is_instance_valid(_target) and not _target.is_dead and can_move and _hit_time_remaining <= 0.0 and is_target_in_range(_target):
 			play_attack_animation()
 			return
@@ -442,7 +499,7 @@ func _update_animation(delta: float) -> void:
 
 	if _current_animation == "hit" and frame == frame_count - 1 and _hit_time_remaining == 0.0:
 		_set_animation("idle", true)
-	elif _current_animation == "attack" and not _is_attacking:
+	elif _current_animation.begins_with("attack_") and not _is_attacking:
 		_set_animation("idle", true)
 
 
@@ -488,7 +545,16 @@ func _apply_grounded_motion() -> void:
 	if _knockback_time_remaining <= 0.0 and _lane_correction_delay_remaining <= 0.0 and _target != null and is_instance_valid(_target) and not _target.is_dead:
 		var separation_x: float = _target.global_position.x - global_position.x
 		var abs_separation_x: float = absf(separation_x)
-		if abs_separation_x <= attack_range:
+		var stop_distance: float = maxf(attack_range, MIN_COMBAT_DISTANCE)
+		if abs_separation_x < stop_distance:
+			var separation_deficit: float = stop_distance - abs_separation_x
+			var separation_direction: float = -sign(separation_x)
+			if is_zero_approx(separation_direction):
+				separation_direction = -_facing if not is_zero_approx(_facing) else -1.0
+			var separation_velocity: float = separation_direction * minf(move_speed * BACKSTEP_SPEED_FACTOR, separation_deficit * 8.0)
+			horizontal_velocity = move_toward(horizontal_velocity, separation_velocity, ACCELERATION * delta)
+			_knockback_velocity_x = move_toward(_knockback_velocity_x, 0.0, KNOCKBACK_RECOVERY_DECAY * delta * 0.2)
+		elif abs_separation_x <= stop_distance:
 			horizontal_velocity = move_toward(horizontal_velocity, 0.0, ATTACK_RANGE_FRICTION * delta)
 			_knockback_velocity_x = move_toward(_knockback_velocity_x, 0.0, KNOCKBACK_RECOVERY_DECAY * delta * 0.35)
 		elif abs_separation_x > hitbox_range + SOFT_TETHER_EXTRA_RANGE:
@@ -499,6 +565,9 @@ func _apply_grounded_motion() -> void:
 			var world_center_x: float = _world_bounds.position.x + (_world_bounds.size.x * 0.5)
 			var center_bias: float = clampf((world_center_x - global_position.x) * 0.16, -SOFT_CENTER_PULL, SOFT_CENTER_PULL)
 			horizontal_velocity = move_toward(horizontal_velocity, center_bias, CENTER_PULL_ACCELERATION * delta)
+			var duel_midpoint_x: float = (global_position.x + _target.global_position.x) * 0.5
+			var midpoint_bias: float = clampf((world_center_x - duel_midpoint_x) * 0.24, -MIDPOINT_RETURN_PULL, MIDPOINT_RETURN_PULL)
+			horizontal_velocity = move_toward(horizontal_velocity, horizontal_velocity + midpoint_bias, CENTER_PULL_ACCELERATION * 0.65 * delta)
 
 	horizontal_velocity += _knockback_velocity_x
 	velocity.x = horizontal_velocity
@@ -538,16 +607,22 @@ func _play_hit_flash() -> void:
 func apply_hit(direction: float, damage: int, impact_bias: float = 1.0) -> void:
 	if is_dead:
 		return
+	var preserve_enemy_attack: bool = profile == "enemy" and _is_attacking and _attack_commit_time_remaining > 0.0
+	if not preserve_enemy_attack:
+		_force_interrupt_all_motion()
+	else:
+		_knockback_velocity_x = 0.0
+		_knockback_time_remaining = 0.0
+		_lane_correction_delay_remaining = 0.0
+		velocity.x = 0.0
 	_apply_directional_force(direction, damage, impact_bias)
 	_play_hit_flash()
 	_reengage_time_remaining = REENGAGE_BOOST_TIME
 	_enter_recovery(RECOVERY_WINDOW)
-	if _is_attacking:
-		_queued_attack = true
-		return
 	_hit_time_remaining = maxf(_hit_time_remaining, RECOVERY_FLOOR)
 	velocity.x = 0.0
-	_set_animation("hit", true)
+	if not preserve_enemy_attack:
+		_set_animation("hit", true)
 
 
 func apply_recoil(direction: float, damage: int, recoil_bias: float = 1.0) -> void:
@@ -591,11 +666,38 @@ func _apply_directional_force(direction: float, damage: int, force_multiplier: f
 	if edge_distance < EDGE_RESISTANCE_DISTANCE:
 		var edge_factor: float = lerpf(EDGE_RESISTANCE_MIN_FACTOR, 1.0, clampf(edge_distance / EDGE_RESISTANCE_DISTANCE, 0.0, 1.0))
 		force *= edge_factor
-	_facing = direction
+	force *= HERO_IMPACT_FORCE_MULTIPLIER if profile == "hero" else ENEMY_IMPACT_FORCE_MULTIPLIER
+	var world_center_x: float = _world_bounds.position.x + (_world_bounds.size.x * 0.5)
+	var offset_from_center: float = global_position.x - world_center_x
+	var center_offset_ratio: float = clampf(absf(offset_from_center) / maxf(1.0, _world_bounds.size.x * 0.5), 0.0, 1.0)
+	if not is_zero_approx(offset_from_center):
+		var moving_away_from_center: bool = sign(offset_from_center) == direction
+		var stage_force_bias: float = lerpf(
+			1.0,
+			EDGE_KNOCKBACK_DRIFT_DAMP if moving_away_from_center else CENTER_KNOCKBACK_RETURN_BOOST,
+			center_offset_ratio
+		)
+		force *= stage_force_bias
 	_knockback_velocity_x = direction * force
 	_knockback_time_remaining = KNOCKBACK_OVERRIDE_TIME
 	_lane_correction_delay_remaining = maxf(_lane_correction_delay_remaining, LANE_CORRECTION_DELAY)
-	_apply_facing()
+	if _target != null and is_instance_valid(_target) and not _target.is_dead:
+		_update_facing_to_target(_target)
+	else:
+		_apply_facing()
+
+
+func _force_interrupt_all_motion() -> void:
+	_is_attacking = false
+	_attack_time = 0.0
+	_attack_hit_emitted = false
+	_attack_commit_time_remaining = 0.0
+	_knockback_velocity_x = 0.0
+	_knockback_time_remaining = 0.0
+	_lane_correction_delay_remaining = 0.0
+	_reengage_time_remaining = 0.0
+	_recovery_time_remaining = 0.0
+	velocity.x = 0.0
 
 
 func _update_knockback(delta: float) -> void:
