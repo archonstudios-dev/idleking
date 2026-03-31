@@ -1,0 +1,290 @@
+Internal Version Control
+========================
+
+Purpose
+-------
+
+This file is the internal version history for the current playable state of the project.
+
+Version naming format:
+- `Idle.King_Version_0`
+- `Idle.King_Version_0.1`
+- `Idle.King_Version_0.2`
+- `Idle.King_Version_0.3`
+- and so on
+
+Rule going forward:
+- every meaningful gameplay, combat, UI, progression, balance, or presentation change should be documented here
+- each new entry should summarize what changed and why it matters
+
+Recommended entry structure going forward:
+- `Status`
+- `Date`
+- `Focus`
+- `Areas`
+- `Summary`
+- `Changes From Previous Version`
+- `Reason For This Version`
+- `Expected Outcome`
+- `Playtest Checks`
+- `Known Risks`
+- `Observed Result`
+- `Decision`
+- `Next Version Target`
+
+
+Idle.King_Version_0
+===================
+
+Status
+------
+
+This is the baseline version being used as the first internal documented build.
+It represents the current playable state at the time this file was created.
+
+
+Core Structure
+--------------
+
+Current combat architecture uses 3 layers:
+
+1. `CombatManager`
+- authoritative combat logic
+- owns HP, damage, attack timing, wave scaling, and progression
+
+2. `CombatBridge`
+- synchronization layer
+- receives attack requests from the manager
+- triggers animations
+- resolves hit events
+- applies momentum-based visual hit/recoil behavior
+
+3. `Character`
+- visual combat layer
+- handles movement, facing, knockback, recoil, hit reactions, and animation playback
+
+
+Current Combat State
+--------------------
+
+The combat system is:
+- real-time
+- automated
+- wave-based
+- visually presented inside the battle stage
+
+Current implemented combat features:
+- autonomous walk-in engagement
+- attack timing based on manager-controlled cooldowns
+- hit-frame synchronized damage resolution
+- knockback and recoil
+- momentum bias
+- hit-stop
+- camera shake
+- floating damage numbers
+- hit flash
+- combat entry delay
+- post-hit pacing delay
+
+
+Current Gameplay Loop
+---------------------
+
+Current loop:
+1. Spawn wave enemy
+2. Hold short entry delay
+3. Hero and enemy approach each other
+4. Auto-combat begins
+5. Hits resolve through `CombatManager`
+6. Enemy death advances the wave
+7. King death resets the current wave
+8. Gold and upgrades feed future progression
+
+
+Current Strengths
+-----------------
+
+- clean 3-layer combat architecture
+- combat damage is authoritative and deterministic
+- visible real-time battle instead of invisible timers only
+- scalable wave progression
+- gold reward loop is functional
+- combat presentation has readable feedback systems
+- battle stage presentation is restored and currently readable
+- music/title-to-main scene flow is currently restored better than before
+
+
+Current Weaknesses
+------------------
+
+- combat can still become one-sided at high waves
+- momentum can still influence fight direction strongly
+- enemy damage scaling can outpace king growth
+- death presentation was a known weak area and has only recently been improved
+- replayability systems outside combat are still shallow compared to the combat foundation
+- enemy identity/pattern variety is still not strongly expressed in visible battle behavior
+
+
+Current Combat Feel Snapshot
+----------------------------
+
+The current version is notably better than the earlier regressed versions because:
+- the character scale/presentation was restored
+- the battle stage readability was restored
+- the current combat flow feels more readable and more stable
+
+However, the system is still best described as:
+- solid foundation
+- improved readability
+- still tune-sensitive
+- still in balancing phase rather than final combat-feel phase
+
+
+Current Balance Snapshot
+------------------------
+
+- knockback is active on both sides
+- knockback is relative to damage, but shaped by caps, resistance, and momentum
+- the enemy can still feel more stable than the king in long fights
+- high-wave fights can become enemy-favored because enemy damage keeps scaling with wave
+- king damage currently depends more directly on upgrade progression
+
+
+Current Presentation Snapshot
+-----------------------------
+
+- battleframe and character presentation are currently in a much better state
+- character grounding has been manually tuned upward to sit properly above the stage floor
+- combat includes:
+  - hit-stop
+  - shake
+  - flash
+  - floating damage numbers
+- death-state consistency has been identified as an important presentation priority
+
+
+Current Audio Snapshot
+----------------------
+
+- branding audio is no longer leaking incorrectly into gameplay combat hits
+- `universalmusic.mp3` is currently intended to continue from title/main flow unless changed in a later version
+- audio volume has already been lowered from the earlier too-loud state
+
+
+Version 0 Summary
+-----------------
+
+`Idle.King_Version_0` should be treated as:
+- the first tracked internal baseline
+- the reference point for future improvements
+- the state from which `0.1`, `0.2`, `0.3`, and later versions will be compared
+
+In short:
+- the game is playable
+- the combat loop is functional
+- the architecture is strong
+- the current work from here onward is refinement, balancing, replayability, and stronger presentation consistency
+
+
+Idle.King_Version_0.1
+=====================
+
+Status
+------
+
+Active
+
+
+Date
+----
+
+2026-03-31
+
+
+Focus
+-----
+
+Combat readability, recovery flow, and death-state consistency pass.
+
+
+Areas
+-----
+
+- combat
+- presentation
+- balance
+
+
+Summary
+-------
+
+- First tracked iteration after the Version 0 baseline
+- Improves death-state synchronization between manager authority and battle visuals
+- Rebalances momentum, recovery, and knockback readability to reduce snowballing
+- Serves as the first real post-baseline combat tuning version
+
+
+Changes From Previous Version
+-----------------------------
+
+- Added explicit bridge-driven death-state synchronization from manager defeat events
+- Added shared post-hit recovery timing to both attacker and defender reactions
+- Reduced momentum gain and increased momentum decay
+- Reduced momentum's ability to suppress attacker recoil
+- Extended knockback visibility slightly before lane correction resumes
+- Added a small comeback resistance layer at low HP
+
+
+Reason For This Version
+-----------------------
+
+Version 0 established a stable baseline, but fights were still resolving too early, momentum swings were rare, and death presentation was inconsistent.
+
+This version exists to make fights more readable, reduce early dominance, and bring the visual state closer to the authoritative combat state.
+
+
+Expected Outcome
+----------------
+
+- more visible back-and-forth exchanges
+- cleaner defeat presentation for both king and enemy
+- less snowballing from first-hit momentum
+- slightly fairer-looking combat without losing readability
+
+
+Playtest Checks
+---------------
+
+- Does the winner of the first exchange still dominate most fights?
+- Do fights show at least one visible momentum swing more often than before?
+- Are both king and enemy death states clearly visible before reset/spawn?
+- Do hits remain readable while knockback stays visible a little longer?
+
+
+Known Risks
+-----------
+
+- Recovery timing may make combat feel too restrained if overtuned
+- Momentum may still remain strong enough to bias outcomes early at high waves
+- Longer knockback readability may expose spacing weaknesses more clearly
+
+
+Observed Result
+---------------
+
+- Death-state synchronization is improved conceptually and now tied to manager defeat events
+- Combat readability is stronger than the baseline
+- The system still needs real playtest confirmation on reversal frequency and late-wave fairness
+- This version is best treated as the current live tuning build rather than a final balanced pass
+
+
+Decision
+--------
+
+Keep as the current active iteration build.
+
+
+Next Version Target
+-------------------
+
+Use `Idle.King_Version_0.2` for the next actual tuning pass after playtesting this build's recovery, reversals, and fairness signals.

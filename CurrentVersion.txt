@@ -1,0 +1,565 @@
+Current Version Notes
+=====================
+
+This file explains the current live combat behavior without changing any gameplay code.
+
+
+1. KNOCKBACK AND DAMAGE SYSTEM
+------------------------------
+
+Current architecture:
+- CombatManager is the only real damage authority.
+- CombatBridge resolves hits after animation impact.
+- Character only handles visual motion, hit reaction, and animation.
+
+Current hit flow:
+1. CombatManager emits `king_attack_performed` or `enemy_attack_performed`.
+2. CombatBridge tells the attacker Character to play its attack animation.
+3. Character emits `attack_hit` at about 45% of the animation.
+4. CombatBridge calls:
+   - `resolve_king_attack()`
+   - `resolve_enemy_attack()`
+5. CombatManager subtracts HP.
+6. CombatBridge then applies visual reactions:
+   - defender gets `apply_hit(...)`
+   - attacker gets `apply_recoil(...)`
+
+So:
+- damage is authoritative and manager-driven
+- knockback is visual-only and bridge/character-driven
+
+
+2. DO THE CHARACTERS HAVE KNOCKBACK?
+------------------------------------
+
+Yes.
+
+Both characters currently have:
+- defender knockback through `apply_hit(...)`
+- attacker recoil through `apply_recoil(...)`
+
+Files involved:
+- `Scripts/Battle/CombatBridge.gd`
+- `Scripts/Battle/Character.gd`
+
+Important detail:
+- both sides are supposed to react on every landed hit
+- the defender reaction is stronger
+- the attacker recoil is smaller
+
+
+3. WHY ENEMY KNOCKBACK IS NOT AS VISUALLY OBVIOUS
+-------------------------------------------------
+
+The enemy can still appear to have weaker knockback even when the same system is being called.
+
+Main reasons in the current version:
+
+1. The enemy often has more damage momentum working in its favor
+- `CombatBridge.gd` keeps a momentum value.
+- When one side keeps landing hits, momentum biases the defender push and reduces attacker recoil.
+- If the enemy is controlling exchanges, the king gets shoved more and the enemy recoils less.
+
+2. The enemy may visually recover faster because of lane behavior
+- `Character.gd` uses:
+  - tether pull
+  - center pull
+  - attack-range braking
+  - re-engage boost
+- These systems can visually hide some enemy pushback because the enemy is pulled back into the lane quickly.
+
+3. Recoil is smaller than direct knockback
+- The attacker reaction uses `RECOIL_FORCE_FACTOR = 0.72`.
+- So even when both units react, the attacker side will look lighter than the defender side.
+
+4. Edge resistance changes what is visible
+- Knockback is reduced near the stage boundary.
+- If the enemy is closer to a safer zone or gets pulled back faster, its reaction can feel less dramatic.
+
+Short version:
+- enemy knockback exists
+- it is just less readable because current momentum, recoil scaling, and re-centering behavior reduce how much of it stays visible
+
+
+4. IS KNOCKBACK RELATIVE TO DAMAGE?
+-----------------------------------
+
+Yes.
+
+Current code:
+- `Character._apply_directional_force(...)`
+
+Knockback strength depends on:
+- incoming damage amount
+- force multiplier from bridge bias
+- momentum bias
+- HP-based resistance
+- edge resistance
+- small random variation
+
+The current force formula is effectively:
+- higher damage -> stronger force
+- but still clamped between a minimum and maximum
+
+Important modifiers:
+- `DAMAGE_FORCE_SCALE = 0.95`
+- `MIN_IMPACT_FORCE = 26.0`
+- `MAX_IMPACT_FORCE = 72.0`
+- `LOW_HP_KNOCKBACK_RESISTANCE = 0.72`
+
+That means knockback is damage-relative, but not purely linear:
+- it has a floor
+- it has a cap
+- it gets reduced by low-HP resistance
+- it gets reduced near edges
+- it gets shaped by bridge momentum
+
+
+5. DAMAGE SYSTEM
+----------------
+
+Damage is not estimated visually.
+It is directly controlled by `Scripts/Autoload/CombatManager.gd`.
+
+King damage:
+- comes from upgrades
+- stored in `king_damage`
+- updated by:
+  - `UpgradeManager.get_combat_damage()`
+  - `_apply_upgrade_stats(...)`
+
+Enemy damage:
+- comes from wave scaling
+- stored in `enemy_damage`
+- created in `_create_enemy_data(wave)`
+
+Current enemy formulas:
+
+Normal enemy:
+- `damage = 2 + int(wave * 0.08)`
+
+Boss enemy:
+- `damage = 8 + int(wave * 0.22)`
+
+So if you are seeing:
+- king damage = 25
+- enemy damage = 50
+
+That is believable in the current build.
+
+Why:
+- king damage is probably your current upgrade value
+- enemy damage is probably coming from a very high wave
+
+Example:
+- at wave 612, normal enemy damage becomes:
+  - `2 + int(612 * 0.08) = 50`
+
+So the system currently allows:
+- king damage to be upgrade-limited
+- enemy damage to continue scaling with wave
+
+That is why combat can feel enemy-favored at very high waves.
+
+
+6. SUGGESTIONS TO IMPROVE THESE SYSTEMS
+--------------------------------------
+
+Best improvements for the current version:
+
+1. Reduce momentum snowball
+- lower momentum gain per hit
+- increase momentum decay
+- cap momentum effect harder
+
+Why:
+- this would reduce the "winner keeps winning" feel
+
+2. Bring defender knockback and attacker recoil closer together
+- slightly reduce defender push
+- slightly increase attacker recoil
+
+Why:
+- this improves the tug-of-war look
+- it makes both units visibly react every exchange
+
+3. Make enemy knockback stay visible for a little longer
+- slightly increase knockback override time
+- slightly reduce immediate lane correction right after enemy gets hit
+
+Why:
+- enemy pushback currently gets visually swallowed too fast
+
+4. Add wave-side damage normalization
+- either slow enemy damage scaling at high waves
+- or let king damage scale harder through upgrades/resources
+
+Why:
+- the current `25 vs 50` type split can be mathematically valid but still feel unfair
+
+5. Separate "combat balance" from "presentation force"
+- keep manager damage as-is if desired
+- but decouple visual knockback force from raw damage above a threshold
+
+Why:
+- very high damage values can make reactions too predictable or too punishing
+- this keeps fights readable without flattening combat math
+
+6. Add defender-specific visibility boost
+- when enemy gets hit, slightly reduce its center pull for a short window
+
+Why:
+- this would make enemy knockback easier to see without changing damage authority
+
+7. Tune high-wave pacing
+- if enemy damage rises faster than king damage, also slow enemy cadence or increase enemy recoil
+
+Why:
+- damage imbalance plus fast cadence makes one-sided lockouts more likely
+
+
+7. PRACTICAL SUMMARY
+--------------------
+
+Current state:
+- both characters do have knockback
+- knockback is influenced by damage
+- damage itself is fully controlled by CombatManager
+- enemy knockback is less visible because the current visual balancing favors faster enemy recovery and momentum-biased exchanges
+
+Most likely cause of what you are feeling:
+- not that enemy has no knockback
+- but that current momentum + recoil scaling + wave damage scaling makes the enemy look more stable and the king look more displaced
+
+If this system is tuned next, the highest-value changes are:
+- reduce momentum snowball
+- increase visible enemy recoil/knockback persistence
+- normalize very high-wave enemy damage relative to king progression
+
+
+8. CURRENT GAMEPLAY LOOP
+------------------------
+
+The current gameplay loop is an automated wave-defense idle loop with visible battle presentation.
+
+At a high level, the loop is:
+1. The game spawns the current wave enemy.
+2. Hero and enemy enter the stage.
+3. There is a short combat entry delay.
+4. Both units walk toward each other.
+5. CombatManager opens the attack window once they are in melee contact.
+6. Both sides auto-attack based on cooldown/timing.
+7. Damage is resolved through CombatManager.
+8. If the enemy dies, the wave advances and a new enemy is prepared.
+9. If the king dies, the same wave is restored and replayed.
+
+This is the current live sequence in more detail:
+
+Combat start:
+- `CombatManager._spawn_enemy_for_wave(wave)` sets the enemy stats.
+- It also refreshes the king HP pool.
+- It starts a short `COMBAT_ENTRY_DELAY`.
+- During that delay:
+  - attack windows are closed
+  - `GameWorld` keeps both fighters unable to move
+- When the delay ends:
+  - `combat_entry_delay_changed(false)` is emitted
+  - `GameWorld` enables movement
+  - both fighters move toward each other
+
+Engagement:
+- `CombatBridge._physics_process()` checks whether hero and enemy are in range.
+- It passes that to `CombatManager.set_attack_windows(...)`.
+- `CombatManager` uses a shared melee-contact window with a small buffer.
+
+Attack cycle:
+- King:
+  - `KingAttackTimer` sets `_king_attack_ready = true`
+  - when in-range and unlocked:
+    - `king_attack_performed` is emitted
+- Enemy:
+  - enemy cooldown timer sets `_enemy_attack_ready = true`
+  - when in-range and unlocked:
+    - `enemy_attack_performed` is emitted
+
+Visual attack:
+- `CombatBridge` receives the attack signal.
+- It tells the right `Character` to play the attack animation.
+- `Character` emits `attack_hit` around 45% of the animation.
+
+Damage resolve:
+- `CombatBridge` calls:
+  - `resolve_king_attack()`
+  - `resolve_enemy_attack()`
+- `CombatManager` applies the real HP subtraction.
+- `CombatBridge` then:
+  - syncs target HP visually
+  - applies knockback/recoil
+  - triggers hit feedback in `GameWorld`
+
+This means the current gameplay loop is:
+- wait
+- approach
+- auto-fight
+- resolve hit
+- either advance wave or replay wave
+
+
+9. WHAT HAPPENS WHEN THE KING HP REACHES 0
+------------------------------------------
+
+Current manager-side behavior:
+- `CombatManager.resolve_enemy_attack()` subtracts HP from `king_current_hp`
+- if HP reaches 0:
+  - `king_damaged` is emitted
+  - `combat_state_changed` is emitted
+  - `king_defeated` is emitted
+
+Current visual-side behavior:
+- `GameWorld` receives the new combat state
+- hero HP UI is updated to 0 through `hero.sync_health(...)`
+
+Important current limitation:
+- `sync_health()` only updates the health number
+- it does not call `Character._die()`
+- so the hero visual does not automatically enter the death animation when manager HP reaches 0
+
+Why the king currently does not reliably play a death animation at 0 HP:
+- the real HP is owned by `CombatManager`
+- but the visual death state is owned by `Character`
+- there is currently no explicit bridge from:
+  - manager HP hit 0
+  - into
+  - `Character._die()` / visual death state
+
+So the current version has a gap:
+- manager knows the king is dead
+- UI knows the king HP is 0
+- but the hero Character is not always told to visually die
+
+This is why the king can appear to hit 0 HP without a proper death animation.
+
+Current practical result:
+- the defeat state is logically recognized
+- but the visual death presentation is incomplete / inconsistent
+
+
+10. WHAT HAPPENS WHEN ENEMY HP REACHES 0
+----------------------------------------
+
+Current manager-side behavior:
+- `CombatManager.resolve_king_attack()` subtracts HP from `enemy_current_hp`
+- if HP reaches 0:
+  - `_handle_enemy_defeat()` is called
+  - gold is granted immediately
+  - `enemy_defeated` is emitted
+  - `current_wave` increments
+  - next wave is stored in `_pending_wave_spawn`
+  - enemy HP is set to 0
+  - combat state is emitted
+
+Current intended visual flow:
+- the current enemy should finish a death presentation
+- then `CombatBridge._on_enemy_died(...)` should call:
+  - `spawn_pending_wave_enemy()`
+  - `GameWorld.refresh_from_combat_state(...)`
+
+But the current live limitation is similar to the king:
+- the enemy visual HP is synced to 0 using `sync_health(...)`
+- `sync_health()` does not automatically call `_die()`
+
+So right now:
+- the manager definitely knows the enemy is dead
+- rewards and wave progression do happen manager-side
+- but the enemy death animation is not guaranteed by the current sync path alone
+
+Short version:
+- logically, yes, enemy death is recognized
+- visually, enemy death animation is not fully guaranteed by the current manager-to-character link
+
+So the current answer is:
+- enemy death animation is intended
+- but in the current implementation it is not as robustly driven as it should be
+
+
+11. WHY DEATH ANIMATIONS ARE CURRENTLY INCONSISTENT
+---------------------------------------------------
+
+The root issue is a split between:
+- authoritative HP in `CombatManager`
+- visual death state in `Character`
+
+Right now:
+- `Character._die()` is only guaranteed when local character-side damage code triggers it
+- but the main live combat path no longer uses local character-side damage as the authority
+- it uses manager-side damage + visual HP syncing
+
+That means:
+- HP goes to 0 in the manager
+- but Character is not necessarily told:
+  - "enter death state now"
+  - "play death animation now"
+  - "emit died when the death hold is done"
+
+That is the current reason death animation behavior is weaker than the rest of the combat flow.
+
+
+12. REPLAYABILITY: HOW THE CURRENT LOOP SUPPORTS IT
+---------------------------------------------------
+
+The game already has a basic replayable structure:
+
+1. Infinite or long-form wave progression
+- waves continue to increase
+- enemy stats continue to scale
+- boss waves appear periodically
+
+2. Resource reward loop
+- enemy defeat grants gold
+- gold can feed upgrades
+- upgrades feed combat strength
+
+3. Passive automation loop
+- the player does not manually control the battle
+- progression comes from preparation, upgrades, and tuning
+
+4. Reset/retry loop
+- when the king loses, the current wave can be replayed
+
+This means the project already has the skeleton of a replayable idle battler:
+- push wave
+- earn reward
+- improve stats
+- push farther
+
+
+13. WHERE THE CURRENT LOOP IS STRONG
+------------------------------------
+
+Strong current foundations:
+- clear 3-layer architecture
+- deterministic damage authority
+- visible battle instead of invisible timers
+- scalable wave-based enemy generation
+- gold reward progression
+- upgrade-driven king growth
+- boss cadence every 10 waves
+
+These are good foundations for replayability because they create:
+- measurable growth
+- repeatable challenge
+- readable progression milestones
+
+
+14. WHERE THE CURRENT LOOP IS WEAK FOR REPLAYABILITY
+----------------------------------------------------
+
+Main weak spots in the current version:
+
+1. Death presentation is not fully reliable
+- losing a fight should feel like a clear event
+- right now king/enemy death visuals are weaker than they should be
+
+2. Wave scaling can outpace king growth
+- enemy damage can become much higher than king damage at high waves
+- this can make progress feel mathematically unfair instead of tactically difficult
+
+3. Combat outcomes can feel too predetermined
+- if momentum and damage scaling snowball too hard
+- the battle can feel decided early
+
+4. The replay loop is mostly numerical right now
+- the player improves stats
+- but there are not yet many additional long-term decision layers in the battle loop itself
+
+5. Defeat recovery is functional but not dramatic
+- replayability improves when loss is readable and recoverable
+- current defeat flow still needs a stronger visual reset cycle
+
+
+15. HOW TO OPTIMIZE THE GAME LOOP FOR REPLAYABILITY
+---------------------------------------------------
+
+Best next improvements, based on the current version:
+
+1. Make death states fully authoritative visually
+- when manager HP reaches 0:
+  - explicitly trigger Character death state
+  - wait for death presentation
+  - then respawn/reset
+
+Why:
+- this makes victories and defeats feel meaningful
+
+2. Normalize high-wave combat scaling
+- keep wave growth
+- but smooth the curve so upgrades and enemy scaling stay competitive longer
+
+Why:
+- replayability dies when progression feels impossible rather than challenging
+
+3. Strengthen reward milestones
+- add stronger differences at:
+  - boss clears
+  - milestone waves
+  - upgrade breakpoints
+
+Why:
+- replayability improves when players can feel "I reached something important"
+
+4. Add more variation in enemy identity
+- enemy pattern strings already exist:
+  - `measured`
+  - `aggressive`
+  - `feint`
+- they are not yet strongly expressed in the visual combat layer
+
+Why:
+- replayability improves when later waves feel behaviorally different, not just numerically larger
+
+5. Make defeat feed progression more clearly
+- loss should still feel useful
+- for example:
+  - clearer gold gain loop
+  - stronger upgrade return
+  - more visible "come back stronger" rhythm
+
+Why:
+- idle replayability depends on loss still contributing to future success
+
+6. Improve the mid-loop decisions outside battle
+- hero slots
+- gacha
+- formation/roster bonuses
+- upgrade tradeoffs
+
+Why:
+- the battle loop becomes more replayable when preparation choices affect the outcome
+
+
+16. PRACTICAL REPLAYABILITY SUMMARY
+-----------------------------------
+
+Current loop:
+- spawn wave
+- approach
+- auto-battle
+- resolve damage
+- gain gold on win
+- retry on defeat
+- buy upgrades
+- repeat
+
+Current biggest optimization opportunities:
+- make deaths visually complete
+- reduce one-sided snowballing
+- normalize high-wave balance
+- make enemy patterns feel more distinct
+- deepen progression choices outside the fight
+
+The current architecture is already good enough to support those improvements.
+The next gains are mostly in:
+- cleaner death/respawn flow
+- better combat balance
+- stronger progression milestones
+- more meaningful strategic choices between waves

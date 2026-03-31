@@ -1,0 +1,281 @@
+Idle King Combat System - Current State
+=====================================
+
+This document describes the current implemented combat behavior without changing any code.
+
+
+1. COMBAT SYSTEM
+----------------
+
+The current combat runtime uses a 3-layer structure:
+
+1. CombatManager
+2. CombatBridge
+3. Character / GameWorld
+
+CombatManager
+- File: Scripts/Autoload/CombatManager.gd
+- This is the authoritative combat logic layer.
+- It owns:
+  - king HP
+  - enemy HP
+  - king damage
+  - enemy damage
+  - king attack timing
+  - enemy attack timing
+  - wave spawning/progression
+  - post-hit pacing delay
+  - combat entry delay
+- It does not play animations directly.
+- It emits combat events such as:
+  - king_attack_performed
+  - enemy_attack_performed
+  - combat_state_changed
+  - wave_started
+  - wave_changed
+
+CombatBridge
+- File: Scripts/Battle/CombatBridge.gd
+- This is the synchronization layer between manager logic and battle visuals.
+- It:
+  - listens to attack signals from CombatManager
+  - triggers attack animations on the active hero/enemy
+  - listens for attack_hit from Character
+  - resolves damage through CombatManager
+  - updates visual HP after damage resolution
+  - applies momentum bias to hit/recoil presentation
+- It does not own damage authority.
+
+Character
+- File: Scripts/Battle/Character.gd
+- This is the visual and movement layer.
+- It owns:
+  - sprite-sheet animation playback
+  - facing
+  - movement
+  - knockback/recoil motion
+  - hit flash
+  - target chasing / spacing behavior
+- It does not calculate battle damage.
+- It emits attack_hit at the attack impact point.
+
+GameWorld
+- File: Scripts/Battle/GameWorld.gd
+- Hosts the battle scene inside the SubViewport.
+- Spawns hero and enemy visuals.
+- Connects the bridge to the current combatants.
+- Provides feedback effects:
+  - damage numbers
+  - camera shake
+  - hit-stop
+
+General flow
+- CombatManager opens attack windows and emits an attack request.
+- CombatBridge tells the correct Character to play its attack animation.
+- Character reaches the attack impact frame and emits attack_hit.
+- CombatBridge calls resolve_king_attack() or resolve_enemy_attack() on CombatManager.
+- CombatManager applies the real damage.
+- CombatBridge syncs the target's visual HP and triggers hit feedback.
+
+
+2. COMBAT JUICE
+---------------
+
+Current combat juice is split between Character.gd and GameWorld.gd.
+
+Present feedback systems
+- Hit-stop
+  - File: Scripts/Battle/GameWorld.gd
+  - Uses Engine.time_scale = 0.05 briefly, then restores it.
+  - Current duration is short but noticeable.
+
+- Camera shake
+  - File: Scripts/Battle/GameWorld.gd
+  - Applies a random camera offset on hit, then resets after a short delay.
+
+- Floating damage numbers
+  - File: Scripts/Battle/GameWorld.gd
+  - Spawns a Label at the hit position.
+  - Tweens it upward and fades it out.
+
+- Hit flash
+  - File: Scripts/Battle/Character.gd
+  - Temporarily tints the sprite brighter on hit, then returns to white.
+
+- Post-hit pacing
+  - File: Scripts/Autoload/CombatManager.gd
+  - Uses POST_HIT_PACING_DELAY so attacks do not immediately chain with no rhythm.
+
+Current feel goal
+- Hits are meant to feel punchy and readable rather than purely statistical.
+- The game currently uses:
+  - visual pause
+  - shake
+  - flash
+  - floating numbers
+  - short rhythm lock after contact
+
+Current limitation
+- The combat feel is present, but its readability still depends heavily on how visible knockback/recoil is during real gameplay.
+
+
+3. KNOCKBACK SYSTEM
+-------------------
+
+Files involved
+- Scripts/Battle/Character.gd
+- Scripts/Battle/CombatBridge.gd
+
+Current design
+- Knockback is visual-only.
+- CombatBridge decides who got hit and who should recoil after damage resolves.
+- Character applies the actual motion force locally.
+
+Current hit reaction path
+- When the king lands a hit:
+  - CombatBridge resolves king damage through CombatManager.
+  - Enemy receives apply_hit(...)
+  - Hero receives apply_recoil(...)
+
+- When the enemy lands a hit:
+  - CombatBridge resolves enemy damage through CombatManager.
+  - Hero receives apply_hit(...)
+  - Enemy receives apply_recoil(...)
+
+Force model
+- Character.gd currently uses:
+  - _knockback_velocity_x
+  - _knockback_time_remaining
+- Knockback temporarily overrides normal AI movement.
+- During knockback:
+  - the character enters a short forced reaction phase
+  - velocity decays smoothly over time
+
+Variation
+- Knockback is not fully constant.
+- Force currently varies through:
+  - base force floor
+  - max force cap
+  - damage-based scaling
+  - randomized variation multiplier
+  - edge resistance near world bounds
+
+Current balancing helpers
+- Edge resistance:
+  - reduces knockback when already near the stage boundary
+  - prevents repeated pushes from pinning one unit to the side too easily
+
+- Soft center bias:
+  - gently encourages re-centering during close combat
+  - avoids permanent long-term drift
+
+- Momentum system:
+  - File: Scripts/Battle/CombatBridge.gd
+  - Momentum ranges toward one side when that side lands hits
+  - It biases:
+    - target knockback
+    - attacker recoil reduction
+  - It also decays over time to avoid permanent dominance
+
+Important distinction
+- apply_hit(...) is the stronger hit reaction
+- apply_recoil(...) is the smaller recoil on the attacker
+
+Current limitation
+- The intended system is symmetric, but the visible result still depends on live tuning of:
+  - force strength
+  - decay
+  - friction
+  - attack range braking
+  - momentum bias
+
+
+4. COMBAT DAMAGE SYSTEM
+-----------------------
+
+Authoritative damage owner
+- CombatManager.gd is the only real damage authority.
+
+What CombatManager controls
+- king_damage
+- enemy_damage
+- king_current_hp
+- enemy_current_hp
+- attack cooldown readiness
+- attack lock timers
+- wave-based enemy stat generation
+
+How damage is applied
+- The bridge never directly subtracts HP.
+- Character never directly calculates battle damage.
+- Only CombatManager does that, inside:
+  - resolve_king_attack()
+  - resolve_enemy_attack()
+
+King attack path
+- King attack timer arms a king attack.
+- When the king is in an open attack window and not locked:
+  - king_attack_performed is emitted
+- Character plays the animation
+- At impact frame:
+  - attack_hit is emitted
+- CombatBridge calls resolve_king_attack()
+- CombatManager subtracts HP from enemy_current_hp
+
+Enemy attack path
+- Enemy cooldown timer re-arms enemy attack readiness.
+- If enemy is in a valid attack window:
+  - enemy_attack_performed is emitted
+- Character plays the animation
+- At impact frame:
+  - attack_hit is emitted
+- CombatBridge calls resolve_enemy_attack()
+- CombatManager subtracts HP from king_current_hp
+
+Wave scaling
+- File: Scripts/Autoload/CombatManager.gd
+- Enemy data is created by _create_enemy_data(wave)
+- Normal waves currently scale:
+  - HP
+  - damage
+  - reward gold
+  - attack cooldown
+- Boss waves use a separate stat curve and slower/heavier cadence.
+
+Current king progression
+- king_damage is driven by upgrades
+- king attack interval is driven by upgrades
+- king HP scales with wave through _refresh_king_health_pool()
+
+
+5. SUMMARY
+----------
+
+Current implemented state:
+- Combat is real-time and autonomous
+- CombatManager is authoritative for damage and timing
+- CombatBridge synchronizes visual attacks and hit resolution
+- Character handles movement, spacing, knockback, recoil, and animations
+- GameWorld adds presentation feedback like hit-stop, shake, and damage numbers
+
+Current practical feel:
+- The system already has:
+  - impact timing
+  - hit-stop
+  - shake
+  - flash
+  - recoil
+  - floating damage numbers
+  - wave-based combat math
+
+Current main tuning sensitivity:
+- The battle feel is now mostly a tuning problem, not an architecture problem.
+- The most sensitive values are:
+  - knockback force
+  - recoil force
+  - momentum gain/decay
+  - attack pacing delay
+  - movement friction around attack range
+
+This file documents the current state only.
+No gameplay code was changed when creating this file.

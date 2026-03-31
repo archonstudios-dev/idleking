@@ -1,0 +1,120 @@
+Idle King Combat System & King Animation Analysis
+===============================================
+
+1. CURRENT IDLE KING'S COMBAT SYSTEM
+-----------------------------------
+
+The project has TWO distinct combat systems:
+
+A. ACTIVE BATTLE SYSTEM (Scripts/Battle/ - Visual fighter game)
+- Core: Scripts/Battle/Character.gd + GameWorld.gd
+- Side-scrolling 1v1 fighter on fixed ground lane.
+- Hero (King): Spawns left, profile="hero", stats: 180HP, 88 speed, 56 attack_range, 16 dmg, 0.68s cooldown.
+- Enemy: Spawns right, wave-scaled: HP=100+(wave-1)*20, dmg=11+(wave-1)*1.5, etc. Boss every 10 waves.
+- AI Logic (Character._process_ai()):
+  - Find nearest target.
+  - Retreat if cooldown + close.
+  - Stop/attack in range.
+  - Approach otherwise.
+  - Knockback on hit, stun (0.16s).
+- Attack: _start_attack() -> anim, at 45% anim time apply dmg to hitbox-range target.
+- Respawn: Hero 1.4s death hold, enemy 1s + wave++.
+- Scenes: GameWorld.tscn manages heroes/enemies nodes.
+- Related: Scenes/Battle/Character.tscn prefab.
+
+Key Code - Character.gd AI & Attack:
+```
+func _process_ai(delta: float) -> void:
+    # ... find target, distance logic
+    if abs_distance_x <= attack_range:
+        velocity.x = move_toward(velocity.x, 0.0, ACCELERATION * delta)
+        if _attack_cooldown_remaining == 0.0:
+            _start_attack()
+        return
+
+func _start_attack() -> void:
+    _is_attacking = true
+    _attack_time = 0.0
+    _attack_hit_applied = false
+    _attack_cooldown_remaining = attack_cooldown
+    _set_animation("attack", true)
+
+func _apply_attack_damage() -> void:
+    var target: Character = _find_target()
+    if target and not _is_target_in_hitbox(target): return
+    target.take_damage(attack_damage, self)
+```
+
+B. IDLE PASSIVE COMBAT (Scripts/Autoload/CombatManager.gd - Main game progression)
+- Timer-based auto-attacks, Phase 2 core loop.
+- King: Fixed 100HP, damage/speed from Upgrades (damage_level, speed_level).
+- Enemies: Wave-based, procedural stats/names (Goblin Raider -> bosses).
+- King attacks every king_attack_speed (1.0s base, upgradable).
+- Enemy can attack manually via perform_enemy_attack() if in range (for staged visuals).
+- Gold reward on kill, wave++.
+- Signals for UI: combat_state_changed, enemy_defeated, etc.
+- Integrates CurrencyManager, UpgradeManager, SaveManager.
+
+Key Code - CombatManager.gd King Attack:
+```
+func _on_attack_timer_timeout() -> void:
+    if enemy_current_hp <= 0: return
+    king_attack_performed.emit(king_damage)
+    enemy_current_hp = max(0, enemy_current_hp - king_damage)
+    if enemy_current_hp == 0:
+        _handle_enemy_defeat()
+```
+
+C. IDLEKING SPECIFIC (Scripts/Combat/)
+- IdleKingCharacter.gd: Base with Area2D attack, gravity/jump, patrol.
+- IdleKingPlayer.gd: Input (A/D move, Space attack), 3 attacks cycle, aggro/roam.
+- FightSandbox.tscn: Testing scene?
+- SpawnManager.gd likely waves.
+- Upgrades apply via signals.
+
+2. ANIMATION FOR KING
+--------------------
+
+King uses Medieval King Pack 2 spritesheets (Assets/Art/King/Medieval King Pack 2/Sprites/).
+
+A. In Battle System (Character.gd):
+HERO_ANIMATIONS dict loaded in _ready():
+```
+const HERO_ANIMATIONS := {
+    "idle": {"texture": preload(".../Idle.png"), "frames": 10, "fps": 8.0},
+    "run": {".../Run.png", 10, 10.0},
+    "attack": {".../Attack2.png", 5, 10.0},
+    "hit": {".../Take Hit.png", 5, 10.0},
+    "death": {".../Death.png", 6, 10.0}
+}
+```
+Sprite2D: hframes=frames, vframes=1. _update_animation(): frame = time * fps % frames (loop idle/run), one-shot others.
+
+_resolve_animation(): death > hit > attack > run(vel>6) > idle.
+
+_apply_facing(): scale.x flip for direction.
+
+B. In IdleKing Combat (IdleKingPlayer.gd):
+Extended animations:
+```
+"idle": IDLE_TEXTURE, 10f@8fps loop
+"run": RUN_TEXTURE, 10f@10 loop
+"attack_1/2/3": Attack1/2/3.png, 5f@12 no-loop
+"hit": 5f@10
+"death": 6f@9
+"jump/fall": 3f@8
+```
+Cycle attacks: attack_1 -> _2 -> _3.
+Same frame logic in _update_animation().
+
+Art Assets:
+- Sprites dir contains: Idle.png, Run.png, Attack1.png, Attack2.png, Attack3.png?, Take Hit.png, Death.png, Jump.png, Fall.png.
+- CC0 license.
+- Sprite2D setup: centered=true, texture_filter=NEAREST, offset, scale=2.2x.
+
+Summary:
+- Combat: Dual systems (active visual Battle vs passive idle CombatManager). King central in both.
+- Anim: Frame-based Sprite2D, state-driven (_resolve_animation), facing flip. King sprites rich (idle/run/attack/hit/death + jump/fall/3 attacks).
+
+No changes made. Analysis based on code reads.
+

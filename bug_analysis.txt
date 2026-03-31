@@ -1,0 +1,26 @@
+BUG ANALYSIS: Why Characters Idle Upon Meeting
+
+Root Cause: Local FSM Cooldown Blocks Bridge-Driven Attacks
+
+3-Layer Confirmed:
+1. CombatManager: Timers emit attack_performed
+2. CombatBridge: Polls pending → Character.play_attack_animation() if in_range
+3. Character: _process_ai() overrides with local cooldown logic
+
+Trigger:
+- Enter attack_range → Local attack → 0.8s cooldown
+- _process_ai(): dist<=range + cooldown>0 → vel=0; return → BOTH idle!
+
+Fix: During cooldown-in-range, add hold/retreat motion:
+```gdscript
+if abs_distance_x <= attack_range:
+    # ... 
+    else:  # cooldown>0
+        var push_x = sign(pos.x - target.x) * 20
+        velocity.x = move_toward(velocity.x, push_x, ACCEL * delta * 0.5)
+```
+
++ Add resolve_*_attack() to CombatManager.
+
+No changes made. View: cat bug_analysis.txt
+

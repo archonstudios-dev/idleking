@@ -1,0 +1,90 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/UI/NameInputScreen.gd" id="1_g7c20"]
+
+[node name="NameInputScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_g7c20")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0470588, 0.0705882, 0.121569, 1)
+
+[node name="GradientBand" type="ColorRect" parent="."]
+offset_top = 240.0
+offset_right = 1080.0
+offset_bottom = 860.0
+color = Color(0.2, 0.141176, 0.0784314, 0.58)
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 120
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 120
+
+[node name="Content" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="HeaderLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 52
+theme_override_colors/font_color = Color(0.968627, 0.85098, 0.529412, 1)
+horizontal_alignment = 1
+text = "Name Your King"
+
+[node name="BodyLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(0.909804, 0.894118, 0.839216, 1)
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Choose a royal name for your defender. This will be saved and shown in the main battle screen."
+
+[node name="SpacerTop" type="Control" parent="MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+
+[node name="NameInput" type="LineEdit" parent="MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+placeholder_text = "Enter King name"
+max_length = 18
+clear_button_enabled = true
+
+[node name="ErrorLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.909804, 0.435294, 0.388235, 1)
+horizontal_alignment = 1
+text = ""
+
+[node name="ConfirmButton" type="Button" parent="MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.14902, 0.105882, 0.0392157, 1)
+text = "Enter the Kingdom"
+
+[node name="BackButton" type="Button" parent="MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Back"

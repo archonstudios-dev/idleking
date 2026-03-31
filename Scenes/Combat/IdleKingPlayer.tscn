@@ -1,0 +1,43 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Combat/IdleKingPlayer.gd" id="1_player"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(34, 72)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(84, 46)
+
+[node name="IdleKingPlayer" type="CharacterBody2D"]
+script = ExtResource("1_player")
+collision_layer = 1
+collision_mask = 7
+floor_stop_on_slope = true
+max_health = 180
+move_speed = 220.0
+attack_range = 88.0
+attack_damage = 16
+attack_cooldown = 0.65
+attack_area_distance = 56.0
+attack_area_size = Vector2(92, 52)
+sprite_offset = Vector2(0, -54)
+sprite_base_scale = Vector2(2.7, 2.7)
+patrol_radius = 72.0
+aggro_range = 520.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -54)
+texture_filter = 0
+centered = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+position = Vector2(0, -36)
+
+[node name="AttackArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
+shape = SubResource("RectangleShape2D_attack")

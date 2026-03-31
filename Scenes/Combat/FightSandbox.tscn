@@ -1,0 +1,53 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Combat/SpawnManager.gd" id="1_spawn_manager"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
+size = Vector2(1800, 80)
+
+[sub_resource type="SystemFont" id="SystemFont_1"]
+font_names = PackedStringArray("Arial")
+
+[node name="FightSandbox" type="Node2D"]
+
+[node name="Floor" type="StaticBody2D" parent="."]
+position = Vector2(540, 980)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor"]
+shape = SubResource("RectangleShape2D_floor")
+
+[node name="SpawnManager" type="Node2D" parent="."]
+script = ExtResource("1_spawn_manager")
+floor_y = 940.0
+player_spawn_position = Vector2(300, 940)
+enemy_spawn_min_x = 760.0
+enemy_spawn_max_x = 980.0
+base_enemy_count = 2
+max_enemies_per_wave = 6
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Hud" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="WaveLabel" type="Label" parent="CanvasLayer/Hud"]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_top = 0.02
+anchor_right = 0.5
+anchor_bottom = 0.02
+offset_left = -120.0
+offset_top = 0.0
+offset_right = 120.0
+offset_bottom = 48.0
+theme_override_fonts/font = SubResource("SystemFont_1")
+theme_override_font_sizes/font_size = 28
+text = "Wave 1"
+horizontal_alignment = 1

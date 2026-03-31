@@ -1,0 +1,16 @@
+SPAWN & ENEMY ATTACK BUGS DIAGNOSED
+
+1. SPAWN TOO CLOSE:
+Code: HERO@236 ENEMY@660 (424px apart) ✓
+Cause: Respawn reuse dead instances (CombatManager.recover_from_king_defeat → NO destroy+respawn)
+Fix: GameWorld.refresh_from_combat_state(): heroes/enemies.clear_children(); spawn_hero/enemy()
+
+2. ENEMY NO ATTACK:
+Auto-loop in CombatManager._physics_process() ✓ resolve_enemy_attack() ✓
+Cause: Dependent on idle bug (!in_range) + _enemy_attack_window_open=false (visual lock)
+Fix: Retreat patch enables range → window opens → attacks flow.
+
+Root: Local FSM overrides bridge. Original idle diagnosis covers.
+
+Test: godot Scenes/Battle/GameWorld.tscn
+

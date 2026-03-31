@@ -1,0 +1,156 @@
+Phase Status
+============
+
+Current Determination
+---------------------
+
+The project should currently be treated as:
+
+`Phase 3.5 - Combat Stabilization and Presentation Readiness`
+
+
+Why This Is The Best Fit
+------------------------
+
+The project is clearly beyond core Phase 3 functionality because it already has:
+- upgrade progression
+- auto-battle loop
+- wave progression
+- boss cadence
+- persistent upgrade structure
+- visible battle presentation instead of placeholder logic only
+
+However, it is not truly in Phase 4 yet because the listed Phase 4 features are still not the main implemented focus:
+- hero gacha
+- hero data resources
+- hero slot functionality
+
+Instead, the current work is still concentrated on:
+- combat readability
+- knockback and momentum tuning
+- death-state consistency
+- presentation polish
+- phase-to-phase stability
+
+That means the project is in an intermediate state:
+- core combat and upgrade loop exists
+- current work is making that loop stable, readable, and ready to support new systems
+- Phase 4 systems should come after this layer is reliable enough to build on
+
+
+Completed Foundation
+--------------------
+
+These areas are functionally present:
+
+- Phase 0
+  - branding splash
+  - title flow
+  - naming flow
+
+- Phase 1
+  - HUD and resource layer
+  - portrait-oriented UI scaffold
+
+- Phase 2
+  - auto-combat loop
+  - wave system
+  - boss cadence
+  - combat HUD state
+
+- Phase 3
+  - upgrade progression
+  - upgrade scaling
+  - persistent upgrade state
+
+
+What Phase 3.5 Means
+--------------------
+
+Phase 3.5 is the bridge between:
+- "the game functions"
+and
+- "the game is ready to expand with hero systems"
+
+Its purpose is to make sure:
+- the combat loop is trustworthy
+- battle presentation is readable
+- defeat/win flow is coherent
+- tuning is stable enough that new progression layers will not sit on a shaky base
+
+This is important because adding Phase 4 too early would risk:
+- stacking hero systems on unstable combat feel
+- making future balance harder to diagnose
+- obscuring whether a problem comes from core combat or new hero features
+
+
+Current Priority Inside Phase 3.5
+---------------------------------
+
+The current priority should be:
+
+1. Combat stability
+- death states
+- reversals
+- fairness
+- pacing
+
+2. Combat readability
+- hit clarity
+- knockback readability
+- visible momentum swings
+- readable wins/losses
+
+3. Presentation consistency
+- stage grounding
+- animation consistency
+- audio behavior
+- battle readability as a whole
+
+4. Iteration discipline
+- internal version tracking
+- playtest signals
+- outcome-driven tuning
+
+
+What Needs To Be True Before Full Phase 4
+-----------------------------------------
+
+Before the project should be considered fully in Phase 4, these should be mostly true:
+
+- combat results are readable and not obviously broken
+- death and respawn flow feel consistent
+- scaling does not make most fights collapse too early
+- the current auto-battle loop is stable enough to support additional hero layers
+- version-to-version tuning can be evaluated clearly
+
+
+Recommended Current Status Label
+--------------------------------
+
+Use this status in planning and documentation:
+
+`Current Phase: Phase 3.5 - Combat Stabilization and Presentation Readiness`
+
+
+Next Phase Trigger
+------------------
+
+The project should move into full `Phase 4` when:
+- combat is stable enough to stop being the main blocker
+- hero slots and hero data become the primary production focus
+- new progression depth is ready to be layered on top of the existing battle loop
+
+
+Practical Summary
+-----------------
+
+Right now the project is:
+- not Phase 3 only anymore
+- not fully Phase 4 yet
+
+It is best categorized as:
+
+`Phase 3.5`
+
+because the current real work is about stabilizing and polishing the combat foundation before expanding into hero/gacha systems.

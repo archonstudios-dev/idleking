@@ -1,0 +1,25 @@
+# Godot 4 local cache
+.godot/
+
+# Legacy/import cache
+.import/
+
+# Export/build output
+.export/
+export_presets.cfg
+build/
+dist/
+
+# IDE settings
+.vscode/
+.idea/
+.codex/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / temp / backups
+*.log
+*.tmp
+*.bak
