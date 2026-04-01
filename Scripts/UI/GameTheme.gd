@@ -1,7 +1,7 @@
 # Applies the bundled project font across the UI with larger sizing for readability.
 extends RefCounted
 
-const GAME_FONT_PATH := "res://Assets/Art/Fonts/gameFont.ttf"
+const GAME_FONT_PATH := "res://Assets/Art/Fonts/yoster.ttf"
 
 
 static func apply_to(control: Control) -> void:
@@ -13,7 +13,7 @@ static func apply_to(control: Control) -> void:
 
 	var theme := Theme.new()
 	theme.default_font = font
-	theme.default_font_size = 34
+	theme.default_font_size = 40
 	theme.set_color("font_shadow_color", "Label", Color(0.02, 0.01, 0.01, 0.82))
 	theme.set_constant("shadow_offset_x", "Label", 0)
 	theme.set_constant("shadow_offset_y", "Label", 2)
@@ -43,7 +43,7 @@ static func apply_display_font(control: Control, font_size: int) -> void:
 		return
 
 	control.add_theme_font_override("font", font)
-	control.add_theme_font_size_override("font_size", max(font_size, 36))
+	control.add_theme_font_size_override("font_size", max(font_size, 42))
 	control.add_theme_color_override("font_outline_color", Color("120d0d"))
 	control.add_theme_constant_override("outline_size", 4)
 	control.add_theme_color_override("font_shadow_color", Color(0.02, 0.01, 0.01, 0.84))

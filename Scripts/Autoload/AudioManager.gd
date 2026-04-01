@@ -35,7 +35,7 @@ func _ready() -> void:
 
 	_branding_player = AudioStreamPlayer.new()
 	_branding_player.name = "BrandingPlayer"
-	_branding_player.stream = _load_mp3_stream(BRANDING_MUSIC_PATH)
+	_branding_player.stream = _load_mp3_stream(BRANDING_MUSIC_PATH, false)
 	_branding_player.volume_db = DEFAULT_VOLUME_DB
 	_branding_player.bus = "Master"
 	add_child(_branding_player)

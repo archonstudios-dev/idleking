@@ -1,0 +1,189 @@
+Phase 3.6 Milestone Validation
+==============================
+
+Purpose
+-------
+
+This file documents the current validated state of Phase 3.6 before work moves into Phase 4.
+
+It serves as:
+- a milestone snapshot
+- a validation checklist
+- a handoff summary of what is currently stable
+
+
+1. CURRENT PHASE
+----------------
+
+Current phase:
+- Phase 3.6
+
+Current focus completed in this phase:
+- UI shell rebuild on top of the stable Phase 3.5 combat baseline
+
+Current state of the project:
+- combat remains functional
+- BattleFrame remains stage-locked
+- UI shell now exists as real scene-owned nodes
+- the layout is editable directly in the Godot editor
+- the main game screen now resembles the intended mobile idle RPG shell direction
+
+
+2. WHAT IS NOW STABLE
+---------------------
+
+2.1 Combat integrity
+- Phase 3.5 combat logic remains intact
+- BattleFrame uses the restored stable viewport placement
+- GameWorld and combat authority were not redesigned during this UI pass
+
+2.2 Main screen UI shell
+- top title/resources area exists
+- gold/gems/wave/enemy HP display exists
+- support rail exists on the left
+- upgrade rail exists on the right
+- tap area exists in the lower center
+- stats panel exists
+- bottom navigation exists
+
+2.3 Editor ownership
+- key UI elements are scene-owned
+- controls are movable and resizable in-editor
+- UI is no longer dependent on runtime-only generation for its main structure
+
+2.4 Font and readability
+- project UI now uses `yoster.ttf`
+- label scaling was increased for better mobile readability
+- header-style text treatment is applied consistently across the shell
+
+2.5 Support panel display
+- Support Slot 1 now displays an animated equipped-unit preview
+- this support-display treatment is now applied to all 3 support slots
+- support previews use gacha-pool character sprite sheets
+- support slots visually function as roster display rather than plain placeholder buttons
+
+2.6 Upgrade panel
+- upgrade buttons are icon-based and enlarged
+- upgrade labels are restored as:
+  - Damage
+  - Max HP
+  - ATK SPD
+  - RECOVERY
+  - GOLD
+
+2.7 Top utility controls
+- settings uses icon-based rendering
+- mute uses icon-based rendering
+- gem panel is now a button and widened for better numeric fit
+
+
+3. ICON PASS STATUS
+-------------------
+
+The screen now uses selected icons from:
+- `Assets/Art/IconPackV2`
+
+Applied icon mappings:
+- Title panel side icon:
+  - `tile181.png`
+- Gold icon:
+  - `tile095.png`
+- Gems icon:
+  - `tile253.png`
+- Settings:
+  - `tile260.png`
+- Mute:
+  - `tile263.png`
+- Damage:
+  - `tile119.png`
+- Max HP:
+  - `tile295.png`
+- ATK SPD:
+  - `tile008.png`
+- RECOVERY:
+  - `tile053.png`
+- GOLD:
+  - `tile095.png`
+
+Important note:
+- bottom nav buttons intentionally remain text-first for now
+
+
+4. VALIDATION CHECKLIST
+-----------------------
+
+The following should be considered the validation targets before beginning Phase 4:
+
+4.1 Main screen visual validation
+- UI appears in-editor
+- UI appears similarly in-game
+- BattleFrame remains inside the intended theater/stage area
+- UI does not push or break combat placement
+
+4.2 Functional validation
+- tap button still gains gold
+- right upgrade buttons remain clickable
+- currency labels update
+- mute/settings remain functional and render correctly
+
+4.3 Support display validation
+- all 3 support slots display animated previews
+- previews face inward consistently
+- no white-edge sprite bleed appears during animation
+- support previews remain readable at current scale
+
+4.4 Layout validation
+- no overlap between:
+  - stats and shop
+  - bottom nav buttons
+  - support slot labels and support previews
+  - upgrade buttons and their text labels
+
+4.5 Asset/import validation
+- removed icon folders do not cause active scene failures
+- new `IconPackV2` assets import correctly
+- no duplicate UID warnings remain from deleted icon folders
+
+
+5. KNOWN CHARACTER OF THE CURRENT BUILD
+---------------------------------------
+
+This build is now best described as:
+- a stable combat baseline
+- plus a functional, editor-owned Phase 3.6 mobile UI shell
+
+It is not yet the final polished release UI.
+
+It is ready as:
+- a milestone checkpoint
+- a stable base for Phase 4 systems and refinement
+
+
+6. PHASE 4 READINESS
+--------------------
+
+The project is ready to move into Phase 4 if the current screen is accepted as the baseline.
+
+Recommended Phase 4 direction:
+- support/team system integration
+- real gacha/team assignment flow
+- upgrade panel function expansion and balancing
+- icon refinement and UX polish
+- stronger tap/feedback/game economy clarity
+- final mobile spacing and alignment polish
+
+
+7. MILESTONE SUMMARY
+--------------------
+
+Phase 3.6 milestone achieved:
+- UI shell rebuilt
+- combat preserved
+- editor-owned layout established
+- support preview concept proven and expanded
+- icon pass established
+- Phase 4 validation checkpoint created
+
+Short version:
+- Phase 3.6 is now in a valid milestone state
+- the build is suitable for validation and controlled expansion into Phase 4

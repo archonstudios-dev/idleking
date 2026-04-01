@@ -1,29 +1,29 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://cly1jvown7vlv"]
 
-[ext_resource type="Script" path="res://Scripts/Battle/GameWorld.gd" id="1_cuw0x"]
-[ext_resource type="Script" path="res://Scripts/Battle/CombatBridge.gd" id="2_lq4m4"]
+[ext_resource type="Script" uid="uid://ds33y8xwllor6" path="res://Scripts/Battle/GameWorld.gd" id="1_cuw0x"]
+[ext_resource type="Script" uid="uid://bhndqxrhs15b2" path="res://Scripts/Battle/CombatBridge.gd" id="2_lq4m4"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
 size = Vector2(1024, 32)
 
-[node name="GameWorld" type="Node2D"]
+[node name="GameWorld" type="Node2D" unique_id=1773350217]
 script = ExtResource("1_cuw0x")
 
-[node name="Heroes" type="Node2D" parent="."]
+[node name="Heroes" type="Node2D" parent="." unique_id=974288566]
 
-[node name="Enemies" type="Node2D" parent="."]
+[node name="Enemies" type="Node2D" parent="." unique_id=111694412]
 
-[node name="CombatBridge" type="Node" parent="."]
+[node name="CombatBridge" type="Node" parent="." unique_id=1715534717]
 script = ExtResource("2_lq4m4")
 
-[node name="Floor" type="StaticBody2D" parent="."]
+[node name="Floor" type="StaticBody2D" parent="." unique_id=1163233423]
 collision_layer = 4
 collision_mask = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor" unique_id=874055953]
 position = Vector2(448, 440)
 shape = SubResource("RectangleShape2D_floor")
+debug_color = Color(0, 0, 0, 0.41960785)
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1859688633]
 position = Vector2(448, 224)
-enabled = true

@@ -30,6 +30,12 @@ func add_gold(amount: int) -> void:
 	_persist_and_emit()
 
 
+func set_gold(amount: int) -> void:
+	# Allows debug tools and resets to overwrite gold directly.
+	gold = max(0, amount)
+	_persist_and_emit()
+
+
 func spend_gold(amount: int) -> bool:
 	# Returns whether the purchase succeeded so upgrade calls can stay simple.
 	if amount > gold:
